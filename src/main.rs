@@ -4,7 +4,6 @@ use pg_browser::handler::{find_handler, Handler};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    dbg!(&args);
     let root_handler = Box::new(RootHandler {});
     let result = find_handler(root_handler, &args[1..])
         .map_or_else(|e| e, |handler| handler.handle());
