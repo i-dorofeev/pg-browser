@@ -1,5 +1,7 @@
 use std::env;
 
+use pg_browser::handler::{find_handler, Handler};
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     dbg!(&args);
@@ -7,23 +9,6 @@ fn main() {
     let result = find_handler(root_handler, &args[1..])
         .map_or_else(|e| e, |handler| handler.handle());
     println!("{result}");
-}
-
-fn find_handler(
-    root_handler: Box<dyn Handler>,
-    args: &[String],
-) -> Result<Box<dyn Handler>, String> {
-    if args.is_empty() {
-        Ok(root_handler)
-    } else {
-        let next_handler = root_handler.get_next(&args[0]);
-        find_handler(next_handler?, &args[1..])
-    }
-}
-
-trait Handler {
-    fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String>;
-    fn handle(&self) -> String;
 }
 
 struct RootHandler {}
