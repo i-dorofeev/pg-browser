@@ -33,6 +33,20 @@ mod tests {
         assert_eq!("a b c", &result, "mock handler should collect all the arguments");
     }
 
+    #[test]
+    fn returns_error_when_handler_does_not_support_parameter() {
+        // given
+        let root_handler = Box::new(ErrHandler {});
+        let args: Vec<String> = vec!["aaa".to_string()];
+
+        // when
+        let result = find_handler(root_handler , &args);
+
+        // then
+        assert!(result.is_err());
+        assert_eq!(result.err().unwrap(), "aaa is not supported".to_string());
+    }
+
     struct MockHandler {
         collected_args: Vec<String>
     }
@@ -47,6 +61,17 @@ mod tests {
     
         fn handle(&self) -> String {
             self.collected_args.join(" ")
+        }
+    }
+
+    struct ErrHandler { }
+    impl Handler for ErrHandler {
+        fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String> {
+            Err(format!("{param} is not supported"))
+        }
+    
+        fn handle(&self) -> String {
+            todo!()
         }
     }
 
