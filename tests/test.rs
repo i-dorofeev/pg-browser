@@ -4,7 +4,7 @@ use std::{
     env,
     ffi::OsString,
     fs,
-    io::{BufReader, Error, Read},
+    io::{BufRead, BufReader, Error, Read},
     process::{Child, Command, ExitStatus, Stdio},
     sync::{
         mpsc::{channel, Receiver, Sender, TryRecvError},
@@ -24,27 +24,39 @@ fn build_docker_image() {
         .arg("-t")
         .arg("pg-browser/postgres")
         .arg(docker_build_context);
-    let mut child = ChildProcess::start(command);
-    loop {
-        match child.receive() {
-            ChildProcessOutput::StdErr(stderr) => {
-                println!("{}", stderr.yellow());
-            }
-            ChildProcessOutput::StdOut(stdout) => {
-                println!("{}", stdout);
-            }
-            ChildProcessOutput::Completed(exit_status) => {
-                print_exit_status(&exit_status);
-                break;
-            }
-            ChildProcessOutput::None => {}
+    ChildProcess::start(command).listen(vec![&print]);
+}
 
-            ChildProcessOutput::Error(err) => {
-                println!("{}", format!("{:?}", err).red());
-            }
+#[derive(PartialEq)]
+enum ListenResult {
+    Break,
+    Continue,
+}
+
+fn print(output: &ChildProcessOutput) -> ListenResult {
+    match output {
+        ChildProcessOutput::None => {}
+
+        ChildProcessOutput::StdErr(stderr) => {
+            print!("{}", stderr.yellow());
+        }
+
+        ChildProcessOutput::StdOut(stdout) => {
+            print!("{}", stdout);
+        }
+
+        ChildProcessOutput::Error(err) => {
+            println!("{}", format!("{:?}", err).red());
+        }
+
+        ChildProcessOutput::Completed(exit_status) => {
+            print_exit_status(exit_status);
         }
     }
+    ListenResult::Continue
 }
+
+type Listener = dyn Fn(&ChildProcessOutput) -> ListenResult;
 
 #[test]
 fn hash_docker_build_context() {
@@ -63,32 +75,39 @@ fn hash_pgdata() {
 }
 
 // use merkle_hash::{MerkleItem, MerkleTree};
-// `docker run --rm --name pg-browser --user "$(id -u):$(id -g)" -e POSTGRES_PASSWORD=mysecretpassword
-// -v ./target/pgdata:/var/lib/postgresql/data pg-browser/postgres`
+/*
+docker run --rm --name pg-browser --user "$(id -u):$(id -g)" -e POSTGRES_PASSWORD=mysecretpassword -v ./target/pgdata:/var/lib/postgresql/data pg-browser/postgres
+*/
 #[test]
 fn init_pgdata() {
     fs::create_dir_all(pgdata_dir()).expect("dir created");
 
     let uid = users::get_current_uid();
     let gid = users::get_current_gid();
-    run_command(
-        Command::new("docker")
-            .arg("run")
-            .arg("--rm")
-            .arg("--name")
-            .arg("pg-browser")
-            .arg("--user")
-            .arg(format!("{uid}:{gid}"))
-            .arg("-e")
-            .arg("POSTGRES_PASSWORD=mysecretpassword")
-            .arg("-v")
-            .arg(format!(
-                "{}:{}",
-                pgdata_dir().to_str().unwrap(),
-                "/var/lib/postgresql/data"
-            ))
-            .arg("pg-browser/postgres"),
-    );
+
+    let mut command = Command::new("docker");
+    command
+        .arg("run")
+        .arg("--rm")
+        .arg("-it")
+        .arg("--name")
+        .arg("pg-browser")
+        .arg("--user")
+        .arg(format!("{uid}:{gid}"))
+        .arg("-e")
+        .arg("POSTGRES_PASSWORD=mysecretpassword")
+        .arg("-v")
+        .arg(format!(
+            "{}:{}",
+            pgdata_dir().to_str().unwrap(),
+            "/var/lib/postgresql/data"
+        ))
+        .arg("pg-browser/postgres");
+
+    ChildProcess::start(command).listen(vec![
+        &print,
+        // &until_stdout_logged("database system is ready to accept connections".to_string()),
+    ]);
 }
 
 fn pgdata_dir() -> OsString {
@@ -99,44 +118,6 @@ fn pgdata_dir() -> OsString {
 fn docker_build_context() -> OsString {
     let current_dir = env::current_dir().expect("current path");
     current_dir.join("postgres").into_os_string()
-}
-
-fn run_command(command: &mut Command) {
-    // println!("\n{:?}", &command);
-
-    // let mut child = command
-    //     .stdout(io::stdout())
-    //     .stderr(io::stderr())
-    //     .spawn()
-    //     .unwrap();
-
-    // {
-    //     // let mut stdout = StdReader::stdout_reader(&child);
-    //     // let mut stderr = StdReader::stderr_reader(&child);
-
-    //     loop {
-    //         // let stdout_complete = stdout.read_next_line(|line| {
-    //         //     // listeners
-    //         //     //     .iter()
-    //         //     //     .for_each(|l| l.on_stdout_line(&mut child, &line));
-    //         // });
-
-    //         let stderr_complete = stderr.read_next_line(|line| {
-    //             // listeners
-    //             //     .iter()
-    //             //     .for_each(|l| l.on_stderr_line(&mut child, &line));
-    //         });
-
-    //         if stdout_complete && stderr_complete {
-    //             break;
-    //         }
-    //     }
-    // }
-
-    // match child.wait() {
-    //     Ok(status) => print_exit_status(&status),
-    //     Err(_) => println!("Error on process exit"),
-    // }
 }
 
 fn print_exit_status(status: &ExitStatus) {
@@ -150,7 +131,6 @@ fn print_exit_status(status: &ExitStatus) {
 }
 
 struct ChildProcess {
-    command: Command,
     child: Child,
     output: Receiver<ChildProcessOutput>,
     stdout_thread: Option<JoinHandle<()>>,
@@ -194,7 +174,6 @@ impl ChildProcess {
         });
 
         ChildProcess {
-            command,
             child,
             output: rx,
             stdout_thread: Some(stdout_thread),
@@ -216,7 +195,7 @@ impl ChildProcess {
         let mut i = 2;
         while i > 0 {
             let mut buf = String::new();
-            match reader.read_to_string(&mut buf) {
+            match reader.read_line(&mut buf) {
                 Ok(_) => {
                     if !buf.is_empty() {
                         target.send(output(Ok(buf))).unwrap();
@@ -234,37 +213,67 @@ impl ChildProcess {
         }
     }
 
+    fn listen(&mut self, listeners: Vec<&Listener>) {
+        loop {
+            match self.receive() {
+                completed @ ChildProcessOutput::Completed(_) => {
+                    listeners.iter().for_each(|listener| {
+                        listener(&completed);
+                    });
+
+                    break;
+                }
+                output => {
+                    let r#break = listeners
+                        .iter()
+                        .map(|listener| listener(&output))
+                        .any(|listen_result| listen_result == ListenResult::Break);
+                    if r#break {
+                        println!("Killing...");
+                        self.child.kill().expect("child process failed to stop");
+                        println!("Killed...");
+                    }
+                }
+            }
+        }
+    }
+
     fn receive(&mut self) -> ChildProcessOutput {
         match self.output.try_recv() {
             Ok(output) => output,
-            Err(TryRecvError::Empty) => {
-                let output = {
-                    let mut exit_status = self.exit_status.lock().unwrap();
-                    match *exit_status {
-                        Some(_) => ChildProcessOutput::None,
-                        None => match self.child.try_wait() {
-                            Ok(maybe_exit_status) => {
-                                *exit_status = maybe_exit_status;
-                                ChildProcessOutput::None
-                            }
-                            Err(e) => ChildProcessOutput::Error(ChildProcessError::Wait(e)),
-                        },
-                    }
-                };
-
-                output
-            }
+            Err(TryRecvError::Empty) => self.check_terminated().map_or_else(
+                |e| ChildProcessOutput::Error(ChildProcessError::Wait(e)),
+                |_| ChildProcessOutput::None,
+            ),
             Err(TryRecvError::Disconnected) => {
-                if let Some(t) = self.stderr_thread.take() {
-                    t.join().unwrap()
-                }
-                if let Some(t) = self.stdout_thread.take() {
-                    t.join().unwrap()
-                }
+                self.join_threads();
 
                 let exit_status = self.exit_status.lock().unwrap();
                 ChildProcessOutput::Completed((*exit_status).unwrap())
             }
+        }
+    }
+
+    fn check_terminated(&mut self) -> Result<(), Error> {
+        let mut exit_status = self.exit_status.lock().unwrap();
+        match *exit_status {
+            Some(_) => Ok(()),
+            None => match self.child.try_wait() {
+                Ok(maybe_exit_status) => {
+                    *exit_status = maybe_exit_status;
+                    Ok(())
+                }
+                Err(e) => Err(e),
+            },
+        }
+    }
+
+    fn join_threads(&mut self) {
+        if let Some(t) = self.stderr_thread.take() {
+            t.join().unwrap();
+        }
+        if let Some(t) = self.stdout_thread.take() {
+            t.join().unwrap();
         }
     }
 }
