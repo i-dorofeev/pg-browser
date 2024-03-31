@@ -29,7 +29,7 @@ if [ -z "$DATABASE_ALREADY_EXISTS" ]; then
 else
 	cat <<-'EOM'
 
-				PostgreSQL Database directory appears to contain a database; Skipping initialization
+				PostgreSQL Database directory appears to contain a database; Skipping initialization.
 
 	EOM
 fi

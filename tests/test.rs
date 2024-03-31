@@ -1,46 +1,48 @@
-use child::ChildProcess;
-use merkle_hash::{Encodable, MerkleTree};
-use std::{env, ffi::OsString, fs, process::Command};
+use std::{
+    env,
+    fs::{create_dir_all, remove_dir_all},
+    path::PathBuf,
+    process::Command,
+};
+use utils::{child::start_child, fingerprint::Fingerprint};
 
-mod child;
+mod utils;
+
+const POSTGRES_IMAGE: &str = "pg-browser/postgres";
 
 #[test]
-fn build_docker_image() {
-    let current_dir = env::current_dir().expect("current path");
-    let docker_build_context = current_dir.join("postgres").into_os_string();
+fn ensure_pgdata() {
+    let directory_hash = Fingerprint {
+        paths: vec![docker_build_context_path(), pgdata_path()],
+        hash_file: fingerprint_path(),
+    };
 
+    let hashes_match = directory_hash
+        .load()
+        .map(|stored_hash| directory_hash.compute() == stored_hash)
+        .unwrap_or(false);
+
+    if !hashes_match {
+        println!("Rebuilding pgdata...");
+        build_postgres_docker_image();
+        init_pgdata();
+        directory_hash.compute_and_store();
+    }
+}
+
+fn build_postgres_docker_image() {
     let mut command = Command::new("docker");
     command
         .arg("build")
         .arg("-t")
-        .arg("pg-browser/postgres")
-        .arg(docker_build_context);
-    ChildProcess::start(command).listen(vec![&child::print]);
+        .arg(POSTGRES_IMAGE)
+        .arg(docker_build_context_path());
+    start_child(command);
 }
 
-#[test]
-fn hash_docker_build_context() {
-    let tree = MerkleTree::builder(docker_build_context().into_string().unwrap())
-        .build()
-        .unwrap();
-    println!("{}", tree.root.item.hash.to_hex_string());
-}
-
-#[test]
-fn hash_pgdata() {
-    let tree = MerkleTree::builder(pgdata_dir().into_string().unwrap())
-        .build()
-        .unwrap();
-    println!("{}", tree.root.item.hash.to_hex_string());
-}
-
-// use merkle_hash::{MerkleItem, MerkleTree};
-/*
-docker run --rm --name pg-browser --user "$(id -u):$(id -g)" -e POSTGRES_PASSWORD=mysecretpassword -v ./target/pgdata:/var/lib/postgresql/data pg-browser/postgres
-*/
-#[test]
 fn init_pgdata() {
-    fs::create_dir_all(pgdata_dir()).expect("dir created");
+    remove_dir_all(pgdata_path()).unwrap();
+    create_dir_all(pgdata_path()).unwrap();
 
     let uid = users::get_current_uid();
     let gid = users::get_current_gid();
@@ -59,20 +61,25 @@ fn init_pgdata() {
         .arg("-v")
         .arg(format!(
             "{}:{}",
-            pgdata_dir().to_str().unwrap(),
+            pgdata_path().to_str().unwrap(),
             "/var/lib/postgresql/data"
         ))
-        .arg("pg-browser/postgres");
+        .arg(POSTGRES_IMAGE);
 
-    ChildProcess::start(command).listen(vec![&child::print]);
+    start_child(command);
 }
 
-fn pgdata_dir() -> OsString {
-    let current_dir = env::current_dir().expect("current path");
-    current_dir.join("target/pgdata").into_os_string()
+fn pgdata_path() -> PathBuf {
+    let current_dir = env::current_dir().unwrap();
+    current_dir.join("target/pgdata")
 }
 
-fn docker_build_context() -> OsString {
-    let current_dir = env::current_dir().expect("current path");
-    current_dir.join("postgres").into_os_string()
+fn docker_build_context_path() -> PathBuf {
+    let current_dir = env::current_dir().unwrap();
+    current_dir.join("postgres")
+}
+
+fn fingerprint_path() -> PathBuf {
+    let current_dir = env::current_dir().unwrap();
+    current_dir.join("target/fingerprint")
 }

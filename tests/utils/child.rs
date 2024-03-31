@@ -9,7 +9,11 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-pub struct ChildProcess {
+pub fn start_child(command: Command) {
+    ChildProcess::start(command).listen(vec![&print]);
+}
+
+struct ChildProcess {
     child: Child,
     output: Receiver<ChildProcessOutput>,
     stdout_thread: Option<JoinHandle<()>>,
@@ -18,7 +22,7 @@ pub struct ChildProcess {
 }
 
 impl ChildProcess {
-    pub fn start(mut command: Command) -> Self {
+    fn start(mut command: Command) -> Self {
         let mut child = command
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -92,7 +96,7 @@ impl ChildProcess {
         }
     }
 
-    pub fn listen(&mut self, listeners: Vec<&Listener>) {
+    fn listen(&mut self, listeners: Vec<&Listener>) {
         loop {
             match self.receive() {
                 completed @ ChildProcessOutput::Completed(_) => {
@@ -108,9 +112,7 @@ impl ChildProcess {
                         .map(|listener| listener(&output))
                         .any(|listen_result| listen_result == ListenResult::Break);
                     if r#break {
-                        println!("Killing...");
                         self.child.kill().expect("child process failed to stop");
-                        println!("Killed...");
                     }
                 }
             }
@@ -157,7 +159,7 @@ impl ChildProcess {
     }
 }
 
-pub enum ChildProcessOutput {
+enum ChildProcessOutput {
     None,
     StdErr(String),
     StdOut(String),
@@ -166,21 +168,21 @@ pub enum ChildProcessOutput {
 }
 
 #[derive(Debug)]
-pub enum ChildProcessError {
+enum ChildProcessError {
     Wait(Error),
     StdErr(Error),
     StdOut(Error),
 }
 
 #[derive(PartialEq)]
-pub enum ListenResult {
+enum ListenResult {
     Break,
     Continue,
 }
 
-pub type Listener = dyn Fn(&ChildProcessOutput) -> ListenResult;
+type Listener = dyn Fn(&ChildProcessOutput) -> ListenResult;
 
-pub fn print(output: &ChildProcessOutput) -> ListenResult {
+fn print(output: &ChildProcessOutput) -> ListenResult {
     match output {
         ChildProcessOutput::None => {}
 
