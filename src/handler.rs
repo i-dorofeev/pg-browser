@@ -25,14 +25,20 @@ impl TermSize {
     }
 }
 
+pub type StringIter<'a> = Box<dyn Iterator<Item = String> + 'a>;
+
+pub fn string_iter<'a>(str: String) -> StringIter<'a> {
+    Box::new(vec![str].into_iter())
+}
+
 pub trait Handler {
     fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String>;
-    fn handle(&self, term_size: &TermSize) -> String;
+    fn handle<'a>(&self, term_size: &'a TermSize) -> StringIter<'a>;
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{find_handler, Handler, TermSize};
+    use super::{find_handler, Handler, StringIter, TermSize};
 
     const TERM_SIZE: TermSize = TermSize { rows: 20, cols: 80 };
 
@@ -50,7 +56,8 @@ mod tests {
 
         // then
         assert_eq!(
-            "a b c / TermSize { rows: 20, cols: 80 }", &result,
+            &vec!["a b c / TermSize { rows: 20, cols: 80 }".to_string()],
+            &result.collect::<Vec<String>>(),
             "mock handler should collect all the arguments"
         );
     }
@@ -83,8 +90,15 @@ mod tests {
             }))
         }
 
-        fn handle(&self, term_size: &TermSize) -> String {
-            format!("{} / {:?}", self.collected_args.join(" "), term_size)
+        fn handle<'a>(&self, term_size: &'a TermSize) -> StringIter<'a> {
+            Box::new(
+                vec![format!(
+                    "{} / {:?}",
+                    self.collected_args.join(" "),
+                    term_size
+                )]
+                .into_iter(),
+            )
         }
     }
 
@@ -94,7 +108,7 @@ mod tests {
             Err(format!("{param} is not supported"))
         }
 
-        fn handle(&self, _term_size: &TermSize) -> String {
+        fn handle<'a>(&self, _term_size: &'a TermSize) -> StringIter<'a> {
             todo!()
         }
     }

@@ -1,7 +1,7 @@
 use std::env;
 
 use pg_browser::{
-    handler::{find_handler, TermSize},
+    handler::{find_handler, string_iter, TermSize},
     root_handler::RootHandler,
 };
 
@@ -13,6 +13,8 @@ fn main() {
     });
     let term_size = TermSize::new(&termsize::get().unwrap());
     let result = find_handler(root_handler, &args[1..])
-        .map_or_else(|e| e, |handler| handler.handle(&term_size));
-    println!("{result}");
+        .map_or_else(string_iter, |handler| handler.handle(&term_size));
+    for line in result {
+        print!("{line}");
+    }
 }

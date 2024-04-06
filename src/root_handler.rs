@@ -6,7 +6,7 @@ use std::{
 
 use colored::{Color, Colorize};
 
-use crate::handler::{Handler, TermSize};
+use crate::handler::{string_iter, Handler, StringIter, TermSize};
 
 pub struct RootHandler {
     pub pgdata: PathBuf,
@@ -23,7 +23,7 @@ impl Handler for RootHandler {
         }
     }
 
-    fn handle(&self, term_size: &TermSize) -> String {
+    fn handle<'a>(&self, term_size: &'a TermSize) -> StringIter<'a> {
         let pgdata_items = self.known_pgdata_items();
         let name_col_width = pgdata_items
             .iter()
@@ -31,15 +31,12 @@ impl Handler for RootHandler {
             .max()
             .unwrap_or(0);
 
-        let mut output = String::new();
-        self.known_pgdata_items()
-            .iter()
-            .map(|item| Self::format_pgdata_item(item, name_col_width, term_size.cols))
-            .for_each(|item_str| {
-                output.push('\n');
-                output.push_str(&item_str);
-            });
-        output
+        Box::new(
+            self.known_pgdata_items()
+                .into_iter()
+                .map(move |item| Self::format_pgdata_item(item, name_col_width, term_size.cols))
+                .map(|item_str| format!("\n{item_str}")),
+        )
     }
 }
 
@@ -127,7 +124,7 @@ impl RootHandler {
     }
 
     fn format_pgdata_item(
-        item: &PgDataItem,
+        item: PgDataItem,
         name_col_width: usize,
         terminal_width: usize,
     ) -> String {
@@ -215,8 +212,8 @@ impl Handler for AHandler {
         Err(format!("AHandler: Unknown param {param}"))
     }
 
-    fn handle(&self, _term_size: &TermSize) -> String {
-        "Handled by AHandler".to_string()
+    fn handle<'a>(&self, _term_size: &'a TermSize) -> StringIter<'a> {
+        string_iter("Handled by AHandler".to_string())
     }
 }
 
@@ -226,8 +223,8 @@ impl Handler for BHandler {
         Err(format!("BHandler: Unknown param {param}"))
     }
 
-    fn handle(&self, _term_size: &TermSize) -> String {
-        "Handled by BHandler".to_string()
+    fn handle<'a>(&self, _term_size: &'a TermSize) -> StringIter<'a> {
+        string_iter("Handled by BHandler".to_string())
     }
 }
 
@@ -242,7 +239,7 @@ impl Handler for ArbHandler {
         }))
     }
 
-    fn handle(&self, _term_size: &TermSize) -> String {
-        self.val.clone()
+    fn handle<'a>(&self, _term_size: &'a TermSize) -> StringIter<'a> {
+        string_iter(self.val.clone())
     }
 }
