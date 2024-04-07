@@ -1,3 +1,2 @@
-pub mod handler;
+pub mod handlers;
 pub mod readers;
-pub mod root_handler;

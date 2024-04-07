@@ -1,3 +1,5 @@
+pub mod root_handler;
+
 use crate::readers::ReaderFactory;
 
 pub fn find_handler(

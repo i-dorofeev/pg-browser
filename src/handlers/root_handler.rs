@@ -2,13 +2,12 @@ use std::path::PathBuf;
 
 use colored::{Color, Colorize};
 
-use crate::{
-    handler::{string_iter, Handler, StringIter, TermSize},
-    readers::{
-        root_dir_reader::{PgDataItem, PgDataItemState, PgDataItemType},
-        ReaderFactory,
-    },
+use crate::readers::{
+    root_dir_reader::{PgDataItem, PgDataItemState, PgDataItemType},
+    ReaderFactory,
 };
+
+use super::{string_iter, Handler, StringIter, TermSize};
 
 pub struct RootHandler {
     pub pgdata: PathBuf,

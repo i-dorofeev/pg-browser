@@ -1,9 +1,8 @@
 use std::env;
 
 use pg_browser::{
-    handler::{find_handler, string_iter, TermSize},
+    handlers::{find_handler, root_handler::RootHandler, string_iter, TermSize},
     readers::reader_factory,
-    root_handler::RootHandler,
 };
 
 fn main() {
