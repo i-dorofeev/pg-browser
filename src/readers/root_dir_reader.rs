@@ -34,7 +34,7 @@ pub trait RootDirReader<'a> {
     fn known_pgdata_items(&self) -> Vec<PgDataItem>;
 }
 
-pub fn default_root_dir_reader(pgdata: &PathBuf) -> impl RootDirReader<'_> {
+pub fn root_dir_reader(pgdata: &PathBuf) -> impl RootDirReader<'_> {
     DefaultRootDirReader { pgdata }
 }
 
