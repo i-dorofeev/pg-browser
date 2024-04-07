@@ -1,6 +1,6 @@
 use std::{
     fs::{self, Metadata},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 pub struct PgDataItem {
@@ -34,15 +34,15 @@ pub trait RootDirReader<'a> {
     fn known_pgdata_items(&self) -> Vec<PgDataItem>;
 }
 
-struct DefaultRootDirReader<'a> {
-    pub pgdata: &'a PathBuf,
-}
-
-pub fn default_root_dir_reader<'a>(pgdata: &'a PathBuf) -> impl RootDirReader<'a> {
+pub fn default_root_dir_reader(pgdata: &PathBuf) -> impl RootDirReader<'_> {
     DefaultRootDirReader { pgdata }
 }
 
-impl<'a> RootDirReader<'a> for DefaultRootDirReader<'a> {
+struct DefaultRootDirReader<'a, P: AsRef<Path>> {
+    pub pgdata: &'a P,
+}
+
+impl<'a, P: AsRef<Path>> RootDirReader<'a> for DefaultRootDirReader<'a, P> {
     fn known_pgdata_items(&self) -> Vec<PgDataItem> {
         vec![
             self.pgdata_file("PG_VERSION", "Major version number of PostgreSQL"),
@@ -86,7 +86,7 @@ impl<'a> RootDirReader<'a> for DefaultRootDirReader<'a> {
     }
 }
 
-impl<'a> DefaultRootDirReader<'a> {
+impl<'a, P: AsRef<Path>> DefaultRootDirReader<'a, P> {
     fn pgdata_file(&self, name: &'static str, description: &'static str) -> PgDataItem {
         self.pgdata_item(PgDataItemType::File, name, description)
     }
@@ -101,7 +101,7 @@ impl<'a> DefaultRootDirReader<'a> {
         name: &'static str,
         description: &'static str,
     ) -> PgDataItem {
-        let item_path = self.pgdata.join(name);
+        let item_path = self.pgdata.as_ref().join(name);
         match fs::metadata(item_path) {
             Ok(metadata) => {
                 let state = match &item_type.matches(&metadata) {
