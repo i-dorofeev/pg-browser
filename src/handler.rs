@@ -1,3 +1,5 @@
+use crate::readers::ReaderFactory;
+
 pub fn find_handler(
     root_handler: Box<dyn Handler>,
     args: &[String],
@@ -33,11 +35,13 @@ pub fn string_iter<'a>(str: String) -> StringIter<'a> {
 
 pub trait Handler {
     fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String>;
-    fn handle<'a>(&self, term_size: &'a TermSize) -> StringIter<'a>;
+    fn handle<'a>(&self, term_size: &'a TermSize, readers: &dyn ReaderFactory) -> StringIter<'a>;
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::readers::{reader_factory, ReaderFactory};
+
     use super::{find_handler, Handler, StringIter, TermSize};
 
     const TERM_SIZE: TermSize = TermSize { rows: 20, cols: 80 };
@@ -52,7 +56,8 @@ mod tests {
 
         // when
         let found_handler = find_handler(root_handler, &args).expect("handler is found");
-        let result = found_handler.handle(&TERM_SIZE);
+        let reader_factory = reader_factory();
+        let result = found_handler.handle(&TERM_SIZE, reader_factory.as_ref());
 
         // then
         assert_eq!(
@@ -90,7 +95,11 @@ mod tests {
             }))
         }
 
-        fn handle<'a>(&self, term_size: &'a TermSize) -> StringIter<'a> {
+        fn handle<'a>(
+            &self,
+            term_size: &'a TermSize,
+            _readers: &dyn ReaderFactory,
+        ) -> StringIter<'a> {
             Box::new(
                 vec![format!(
                     "{} / {:?}",
@@ -108,7 +117,11 @@ mod tests {
             Err(format!("{param} is not supported"))
         }
 
-        fn handle<'a>(&self, _term_size: &'a TermSize) -> StringIter<'a> {
+        fn handle<'a>(
+            &self,
+            _term_size: &'a TermSize,
+            _readers: &dyn ReaderFactory,
+        ) -> StringIter<'a> {
             todo!()
         }
     }

@@ -2,6 +2,7 @@ use std::env;
 
 use pg_browser::{
     handler::{find_handler, string_iter, TermSize},
+    readers::reader_factory,
     root_handler::RootHandler,
 };
 
@@ -12,8 +13,10 @@ fn main() {
         pgdata: current_dir,
     });
     let term_size = TermSize::new(&termsize::get().unwrap());
-    let result = find_handler(root_handler, &args[1..])
-        .map_or_else(string_iter, |handler| handler.handle(&term_size));
+    let readers = reader_factory();
+    let result = find_handler(root_handler, &args[1..]).map_or_else(string_iter, |handler| {
+        handler.handle(&term_size, readers.as_ref())
+    });
     for line in result {
         print!("{line}");
     }

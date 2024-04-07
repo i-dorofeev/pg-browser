@@ -30,12 +30,20 @@ impl PgDataItemType {
     }
 }
 
-pub struct RootDirReader<'a> {
+pub trait RootDirReader<'a> {
+    fn known_pgdata_items(&self) -> Vec<PgDataItem>;
+}
+
+struct DefaultRootDirReader<'a> {
     pub pgdata: &'a PathBuf,
 }
 
-impl<'a> RootDirReader<'a> {
-    pub fn known_pgdata_items(&self) -> Vec<PgDataItem> {
+pub fn default_root_dir_reader<'a>(pgdata: &'a PathBuf) -> impl RootDirReader<'a> {
+    DefaultRootDirReader { pgdata }
+}
+
+impl<'a> RootDirReader<'a> for DefaultRootDirReader<'a> {
+    fn known_pgdata_items(&self) -> Vec<PgDataItem> {
         vec![
             self.pgdata_file("PG_VERSION", "Major version number of PostgreSQL"),
             self.pgdata_dir("base", "Per-database directories"),
@@ -76,7 +84,9 @@ impl<'a> RootDirReader<'a> {
             self.pgdata_file("postmaster.pid", "A lock file recording the current postmaster process ID (PID) and other running server data")
         ]
     }
+}
 
+impl<'a> DefaultRootDirReader<'a> {
     fn pgdata_file(&self, name: &'static str, description: &'static str) -> PgDataItem {
         self.pgdata_item(PgDataItemType::File, name, description)
     }

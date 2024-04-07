@@ -4,7 +4,10 @@ use colored::{Color, Colorize};
 
 use crate::{
     handler::{string_iter, Handler, StringIter, TermSize},
-    readers::root_dir_reader::{PgDataItem, PgDataItemState, PgDataItemType, RootDirReader},
+    readers::{
+        root_dir_reader::{PgDataItem, PgDataItemState, PgDataItemType},
+        ReaderFactory,
+    },
 };
 
 pub struct RootHandler {
@@ -22,10 +25,8 @@ impl Handler for RootHandler {
         }
     }
 
-    fn handle<'a>(&self, term_size: &'a TermSize) -> StringIter<'a> {
-        let root_dir_reader = RootDirReader {
-            pgdata: &self.pgdata,
-        };
+    fn handle<'a>(&self, term_size: &'a TermSize, readers: &dyn ReaderFactory) -> StringIter<'a> {
+        let root_dir_reader = readers.root_dir_reader(&self.pgdata);
         let pgdata_items = root_dir_reader.known_pgdata_items();
         let name_col_width = pgdata_items
             .iter()
@@ -105,7 +106,7 @@ impl Handler for AHandler {
         Err(format!("AHandler: Unknown param {param}"))
     }
 
-    fn handle<'a>(&self, _term_size: &'a TermSize) -> StringIter<'a> {
+    fn handle<'a>(&self, _term_size: &'a TermSize, _readers: &dyn ReaderFactory) -> StringIter<'a> {
         string_iter("Handled by AHandler".to_string())
     }
 }
@@ -116,7 +117,7 @@ impl Handler for BHandler {
         Err(format!("BHandler: Unknown param {param}"))
     }
 
-    fn handle<'a>(&self, _term_size: &'a TermSize) -> StringIter<'a> {
+    fn handle<'a>(&self, _term_size: &'a TermSize, _readers: &dyn ReaderFactory) -> StringIter<'a> {
         string_iter("Handled by BHandler".to_string())
     }
 }
@@ -132,7 +133,7 @@ impl Handler for ArbHandler {
         }))
     }
 
-    fn handle<'a>(&self, _term_size: &'a TermSize) -> StringIter<'a> {
+    fn handle<'a>(&self, _term_size: &'a TermSize, _readers: &dyn ReaderFactory) -> StringIter<'a> {
         string_iter(self.val.clone())
     }
 }
