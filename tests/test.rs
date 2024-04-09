@@ -1,13 +1,9 @@
 use std::{fs, path::PathBuf};
 
-use rstest::{fixture, rstest};
+use rstest::rstest;
+use utils::fixture::*;
 
 mod utils;
-
-#[fixture]
-fn pgdata() -> PathBuf {
-    utils::pgdata::ensure_pgdata()
-}
 
 #[rstest]
 fn my_test(pgdata: PathBuf) {
