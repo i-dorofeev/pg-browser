@@ -42,6 +42,12 @@ impl Handler for RootHandler {
     }
 }
 
+const GRAY: Color = Color::TrueColor {
+    r: 127,
+    g: 127,
+    b: 127,
+};
+
 impl RootHandler {
     fn format_pgdata_item(
         item: PgDataItem,
@@ -61,11 +67,7 @@ impl RootHandler {
         let padded_name = format!("{name: <width$}", name = item.name, width = name_col_width);
         let padded_name_colored = match item.state {
             PgDataItemState::Present => padded_name.blue(),
-            PgDataItemState::Missing => padded_name.color(Color::TrueColor {
-                r: 127,
-                g: 127,
-                b: 127,
-            }),
+            PgDataItemState::Missing => padded_name.color(GRAY),
             PgDataItemState::Error(_) => padded_name.red(),
         };
 
@@ -83,12 +85,15 @@ impl RootHandler {
         (1..)
             .map(|n| Self::split(item.description, n, description_col_width))
             .take_while(|slice| !slice.is_empty())
-            .for_each(|slice| {
-                output.push_str(&format!(
+            .map(|slice| {
+                format!(
                     "\n{padding: >padding_width$}{slice}",
                     padding = "",
                     padding_width = description_padding
-                ));
+                )
+            })
+            .for_each(|slice| {
+                output.push_str(&slice);
             });
 
         output
@@ -134,5 +139,143 @@ impl Handler for ArbHandler {
 
     fn handle<'a>(&self, _term_size: &'a TermSize, _readers: &dyn ReaderFactory) -> StringIter<'a> {
         string_iter(self.val.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        io::{self},
+        path::PathBuf,
+    };
+
+    use colored::{Color, Colorize};
+
+    use crate::{
+        handlers::{root_handler::tests::colors::*, Handler, TermSize},
+        readers::{
+            root_dir_reader::{PgDataItem, PgDataItemState, PgDataItemType, RootDirReader},
+            ReaderFactory,
+        },
+    };
+
+    use super::RootHandler;
+
+    struct RootDirReaderStub;
+    impl<'a> RootDirReader<'a> for RootDirReaderStub {
+        fn known_pgdata_items(&self) -> Vec<PgDataItem> {
+            vec![
+                PgDataItem {
+                    name: "present_file.aa",
+                    description: "word1word2word3word4",
+                    item_type: PgDataItemType::File,
+                    state: PgDataItemState::Present,
+                },
+                PgDataItem {
+                    name: "missing_file.bbbb",
+                    description: "word5word6word7word8",
+                    item_type: PgDataItemType::File,
+                    state: PgDataItemState::Missing,
+                },
+                PgDataItem {
+                    name: "error_file.ccc",
+                    description: "word9",
+                    item_type: PgDataItemType::File,
+                    state: PgDataItemState::Error(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "permission error",
+                    )),
+                },
+                PgDataItem {
+                    name: "present_dir.aa",
+                    description: "word1word2word3word4",
+                    item_type: PgDataItemType::Dir,
+                    state: PgDataItemState::Present,
+                },
+                PgDataItem {
+                    name: "missing_dir.bbbb",
+                    description: "word5word6word7word8",
+                    item_type: PgDataItemType::Dir,
+                    state: PgDataItemState::Missing,
+                },
+                PgDataItem {
+                    name: "error_dir.ccc",
+                    description: "word9",
+                    item_type: PgDataItemType::Dir,
+                    state: PgDataItemState::Error(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "permission error",
+                    )),
+                },
+            ]
+        }
+    }
+
+    struct ReaderFactoryStub;
+    impl ReaderFactory for ReaderFactoryStub {
+        fn root_dir_reader<'a>(&self, _pgdata: &'a PathBuf) -> Box<dyn RootDirReader<'a> + 'a> {
+            Box::new(RootDirReaderStub)
+        }
+    }
+
+    mod colors {
+        use colored::Color;
+
+        pub const BLUE: Option<Color> = Some(Color::Blue);
+        pub const GRAY: Option<Color> = Some(super::super::GRAY);
+        pub const GREEN: Option<Color> = Some(Color::Green);
+        pub const RED: Option<Color> = Some(Color::Red);
+        pub const YELLOW: Option<Color> = Some(Color::Yellow);
+        pub const NONE: Option<Color> = None;
+    }
+
+    #[test]
+    fn root_hander_renders_root_dir_contents() {
+        // given
+        let root_handler = RootHandler {
+            pgdata: "/pgdata".into(),
+        };
+
+        let term_size = TermSize {
+            rows: 100,
+            cols: 30,
+        };
+
+        let readers = ReaderFactoryStub;
+
+        // when
+        let result = root_handler.handle(&term_size, &readers);
+
+        // then
+        fn line(str: &str, colors: &[Option<Color>]) -> String {
+            let p = str.split('|');
+            let line = p
+                .zip(colors)
+                .map(|(s, color)| {
+                    color.map_or_else(|| s.to_string(), |c| format!("{}", s.color(c)))
+                })
+                .collect::<Vec<String>>()
+                .concat();
+            format!("\n{}", line)
+        }
+
+        #[rustfmt::skip]
+        assert_eq!(
+            result.collect::<Vec<String>>().concat(),
+            [
+                line("F| |present_file.aa  | |word1word2", &[ GREEN, NONE, BLUE, NONE, NONE]),
+                line(" | |                 | |word3word4", &[  NONE, NONE, NONE, NONE, NONE]),
+                line("F| |missing_file.bbbb| |word5word6", &[YELLOW, NONE, GRAY, NONE, NONE]),
+                line(" | |                 | |word7word8", &[  NONE, NONE, NONE, NONE, NONE]),
+                line("F| |error_file.ccc   | |word9",      &[   RED, NONE,  RED, NONE, NONE]),
+                line("D| |present_dir.aa   | |word1word2", &[ GREEN, NONE, BLUE, NONE, NONE]),
+                line(" | |                 | |word3word4", &[  NONE, NONE, NONE, NONE, NONE]),
+                line("D| |missing_dir.bbbb | |word5word6", &[YELLOW, NONE, GRAY, NONE, NONE]),
+                line(" | |                 | |word7word8", &[  NONE, NONE, NONE, NONE, NONE]),
+                line("D| |error_dir.ccc    | |word9",      &[   RED, NONE,  RED, NONE, NONE]),
+
+            ]
+            .concat()
+        );
     }
 }
