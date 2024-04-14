@@ -7,7 +7,9 @@ use crate::readers::{
     ReaderFactory,
 };
 
-use super::{string_iter, Handler, StringIter, TermSize};
+use super::{
+    root_dir_handlers::base_handler::BaseHandler, string_iter, Handler, StringIter, TermSize,
+};
 
 pub struct RootHandler {
     pub pgdata: PathBuf,
@@ -16,6 +18,9 @@ pub struct RootHandler {
 impl Handler for RootHandler {
     fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String> {
         match param {
+            "base" => Ok(Box::new(BaseHandler {
+                base_path: self.pgdata.join("base"),
+            })),
             "a" => Ok(Box::new(AHandler {})),
             "b" => Ok(Box::new(BHandler {})),
             val => Ok(Box::new(ArbHandler {

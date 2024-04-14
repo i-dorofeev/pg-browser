@@ -1,3 +1,4 @@
+pub mod root_dir_handlers;
 pub mod root_handler;
 
 use crate::readers::ReaderFactory;

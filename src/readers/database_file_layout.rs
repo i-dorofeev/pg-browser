@@ -14,7 +14,13 @@ impl PGData {
 }
 
 pub mod pg_data {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     pub struct Base(pub PathBuf);
+
+    impl Base {
+        pub fn path(&self) -> &Path {
+            self.0.as_path()
+        }
+    }
 }
