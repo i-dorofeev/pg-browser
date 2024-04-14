@@ -1,11 +1,12 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use self::root_dir_reader::{root_dir_reader, RootDirReader};
 
+pub mod database_file_layout;
 pub mod root_dir_reader;
 
 pub trait ReaderFactory {
-    fn root_dir_reader<'a>(&self, pgdata: &'a PathBuf) -> Box<dyn RootDirReader<'a> + 'a> {
+    fn root_dir_reader<'a>(&self, pgdata: &'a Path) -> Box<dyn RootDirReader + 'a> {
         Box::new(root_dir_reader(pgdata))
     }
 }

@@ -1,8 +1,8 @@
+use pg_browser::readers::database_file_layout::PGData;
 use rstest::fixture;
 
-use std::path::PathBuf;
-
 #[fixture]
-pub fn pgdata() -> PathBuf {
-    super::pgdata::ensure_pgdata()
+pub fn pgdata() -> PGData {
+    let path = super::pgdata::ensure_pgdata();
+    PGData(path)
 }

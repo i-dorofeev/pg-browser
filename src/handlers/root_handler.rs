@@ -144,10 +144,7 @@ impl Handler for ArbHandler {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        io::{self},
-        path::PathBuf,
-    };
+    use std::{io, path::Path};
 
     use colored::{Color, Colorize};
 
@@ -162,7 +159,7 @@ mod tests {
     use super::RootHandler;
 
     struct RootDirReaderStub;
-    impl<'a> RootDirReader<'a> for RootDirReaderStub {
+    impl RootDirReader for RootDirReaderStub {
         fn known_pgdata_items(&self) -> Vec<PgDataItem> {
             vec![
                 PgDataItem {
@@ -213,7 +210,7 @@ mod tests {
 
     struct ReaderFactoryStub;
     impl ReaderFactory for ReaderFactoryStub {
-        fn root_dir_reader<'a>(&self, _pgdata: &'a PathBuf) -> Box<dyn RootDirReader<'a> + 'a> {
+        fn root_dir_reader<'a>(&self, _pgdata: &'a Path) -> Box<dyn RootDirReader + 'a> {
             Box::new(RootDirReaderStub)
         }
     }

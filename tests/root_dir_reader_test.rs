@@ -1,18 +1,19 @@
 mod utils;
 
-use std::path::PathBuf;
-
-use pg_browser::readers::root_dir_reader::{
-    root_dir_reader, PgDataItem, PgDataItemState, PgDataItemType, RootDirReader,
+use pg_browser::readers::{
+    database_file_layout::PGData,
+    root_dir_reader::{
+        root_dir_reader, PgDataItem, PgDataItemState, PgDataItemType, RootDirReader,
+    },
 };
 use pretty_assertions::assert_eq;
 use rstest::rstest;
 use utils::fixture::*;
 
 #[rstest]
-fn reads_root_dir(pgdata: PathBuf) {
+fn reads_root_dir(pgdata: PGData) {
     // given
-    let reader = root_dir_reader(&pgdata);
+    let reader = root_dir_reader(pgdata.path());
 
     // when
     let items = reader.known_pgdata_items();
