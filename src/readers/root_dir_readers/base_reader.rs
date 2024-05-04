@@ -19,7 +19,8 @@ pub struct BaseDir(pub Vec<BaseDirItem>);
 
 impl BaseDir {
     pub fn items(&self) -> &[BaseDirItem] {
-        &self.0[..]
+        let BaseDir(items) = self;
+        &items[..]
     }
 }
 
