@@ -5,6 +5,8 @@ use std::{
     process::Command,
 };
 
+use anyhow::anyhow;
+
 use super::{child::start_child, fingerprint::Fingerprint};
 
 const POSTGRES_IMAGE: &str = "pg-browser/postgres";
@@ -15,12 +17,15 @@ pub fn ensure_pgdata() -> PathBuf {
         hash_file: fingerprint_path(),
     };
 
+    let mut pgdata = std::fs::read_dir(pgdata_path()).unwrap();
+    let pgdata_empty = pgdata.next().is_none();
+
     let hashes_match = directory_hash
         .load()
         .map(|stored_hash| directory_hash.compute() == stored_hash)
         .unwrap_or(false);
 
-    if !hashes_match {
+    if pgdata_empty || !hashes_match {
         println!("Rebuilding pgdata...");
         build_postgres_docker_image();
         init_pgdata();
@@ -67,6 +72,12 @@ fn init_pgdata() {
         .arg(POSTGRES_IMAGE);
 
     start_child(command);
+
+    let mut pgdata = std::fs::read_dir(pgdata_path()).unwrap();
+    let _ = pgdata
+        .next()
+        .ok_or(anyhow!("PGDATA hasn't been initialised"))
+        .unwrap();
 }
 
 fn pgdata_path() -> PathBuf {
