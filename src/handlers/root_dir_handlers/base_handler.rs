@@ -70,11 +70,7 @@ mod tests {
     use anyhow::anyhow;
     use anyhow::Error;
 
-    use crate::common::FileType;
-    use crate::common::PgOid;
-    use crate::readers::root_dir_readers::base_reader::{
-        BaseDir, BaseDirItem, BaseDirReader, DatabaseDir,
-    };
+    use crate::readers::root_dir_readers::base_reader::{BaseDir, BaseDirItem, BaseDirReader};
     use crate::{
         handlers::{Handler, TermSize},
         readers::ReaderFactory,

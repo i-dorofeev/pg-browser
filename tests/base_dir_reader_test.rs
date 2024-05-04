@@ -22,7 +22,6 @@ fn reads_base_dir(pgdata: PGData) {
         base,
         BaseDir(vec![
             BaseDirItem::database_dir(1, "TODO: database name"),
-            BaseDirItem::database_dir(16384, "TODO: database name"),
             BaseDirItem::database_dir(4, "TODO: database name"),
             BaseDirItem::database_dir(5, "TODO: database name")
         ])
