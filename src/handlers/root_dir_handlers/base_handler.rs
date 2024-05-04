@@ -1,4 +1,7 @@
-use crate::readers::root_dir_readers::base_reader::{BaseDirItem, DatabaseDir};
+use crate::{
+    common::render_file_type,
+    readers::root_dir_readers::base_reader::{BaseDirEntry, BaseDirItem},
+};
 use std::path::PathBuf;
 
 use anyhow::Error;
@@ -43,11 +46,18 @@ impl Handler for BaseHandler {
 
 fn format_base_dir_item(base_dir_item: &BaseDirItem) -> String {
     match base_dir_item {
-        BaseDirItem::DatabaseDir(DatabaseDir { name }) => {
-            format!("D {}", name.to_string_lossy().bright_blue())
+        BaseDirItem::DatabaseDir(dir) => {
+            // dir name is a string representation of oid
+            // oid is an unsigned 32-bit integer with a range of values [0; 4,294,967,295]
+            // and string representation maximum length of 10 chars
+            format!("D {:>10} {}", dir.dir_name().bright_blue(), dir.db_name)
         }
-        BaseDirItem::Unknown { file_name } => {
-            format!("F {}", file_name.to_string_lossy().color(GRAY))
+        BaseDirItem::UnknownEntry(BaseDirEntry { name, entry_type }) => {
+            format!(
+                "{} {}",
+                render_file_type(entry_type),
+                name.to_string_lossy().color(GRAY)
+            )
         }
         BaseDirItem::Error(err) => format!("E {}", err.to_string().red()),
     }
@@ -60,6 +70,8 @@ mod tests {
     use anyhow::anyhow;
     use anyhow::Error;
 
+    use crate::common::FileType;
+    use crate::common::PgOid;
     use crate::readers::root_dir_readers::base_reader::{
         BaseDir, BaseDirItem, BaseDirReader, DatabaseDir,
     };
@@ -96,8 +108,10 @@ mod tests {
             [
                 line("/pgdata|/base", &[GRAY, YELLOW]),
                 line("Each directory stores data for each database in the cluster and is named after the database's OID in |pg_database", &[NONE, GRAY]),
-                line("D |1", &[NONE, BRIGHT_BLUE]),
-                line("F |2", &[NONE, GRAY]),
+                line("D |         2| database_name_1", &[NONE, BRIGHT_BLUE, NONE]),
+                line("D |4294967295| database_name_2", &[NONE, BRIGHT_BLUE, NONE]),
+                line("F |some_file", &[NONE, GRAY]),
+                line("D |some_dir", &[NONE, GRAY]),
                 line("E |unexpected error", &[NONE, RED]),
                 line("", &[])
             ]
@@ -117,8 +131,10 @@ mod tests {
         #[rustfmt::skip]
         fn read_base_dir(&self) -> Result<BaseDir, Error> {
             Ok(BaseDir(vec![
-                BaseDirItem::DatabaseDir(DatabaseDir { name: "1".into() }),
-                BaseDirItem::Unknown { file_name: "2".into() },
+                BaseDirItem::database_dir(2, "database_name_1"),
+                BaseDirItem::database_dir(std::u32::MAX, "database_name_2"),
+                BaseDirItem::unknown_file("some_file"),
+                BaseDirItem::unknown_dir("some_dir"),
                 BaseDirItem::Error(anyhow!("unexpected error")),
             ]))
         }

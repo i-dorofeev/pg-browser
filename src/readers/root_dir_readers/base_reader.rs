@@ -4,7 +4,9 @@ use std::{
     path::Path,
 };
 
-use anyhow::{Context, Error};
+use anyhow::{Context, Error, Result};
+
+use crate::common::{FileType, PgOid};
 
 pub fn base_dir_reader(path: &Path) -> impl BaseDirReader + '_ {
     DefaultBaseDirReader { path }
@@ -27,7 +29,7 @@ impl BaseDir {
 #[derive(Debug)]
 pub enum BaseDirItem {
     DatabaseDir(DatabaseDir),
-    Unknown { file_name: OsString },
+    UnknownEntry(BaseDirEntry),
     Error(anyhow::Error),
 }
 
@@ -35,8 +37,8 @@ impl PartialEq for BaseDirItem {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (BaseDirItem::DatabaseDir(dir1), BaseDirItem::DatabaseDir(dir2)) => dir1 == dir2,
-            (BaseDirItem::Unknown { file_name: fn1 }, BaseDirItem::Unknown { file_name: fn2 }) => {
-                fn1 == fn2
+            (BaseDirItem::UnknownEntry(entry1), BaseDirItem::UnknownEntry(entry2)) => {
+                entry1 == entry2
             }
             (BaseDirItem::Error(_), BaseDirItem::Error(_)) => true,
             _ => false,
@@ -44,18 +46,80 @@ impl PartialEq for BaseDirItem {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct DatabaseDir {
-    pub name: OsString,
+impl BaseDirItem {
+    pub fn database_dir(pg_oid: u32, db_name: &'static str) -> BaseDirItem {
+        BaseDirItem::DatabaseDir(DatabaseDir {
+            oid: PgOid(pg_oid),
+            db_name: db_name.into(),
+        })
+    }
+
+    pub fn unknown_file(name: &'static str) -> BaseDirItem {
+        BaseDirItem::UnknownEntry(BaseDirEntry {
+            name: name.into(),
+            entry_type: FileType::File,
+        })
+    }
+
+    pub fn unknown_dir(name: &'static str) -> BaseDirItem {
+        BaseDirItem::UnknownEntry(BaseDirEntry {
+            name: name.into(),
+            entry_type: FileType::Dir,
+        })
+    }
 }
 
 #[derive(Debug, PartialEq)]
-pub struct DatabaseOID(String);
+pub struct BaseDirEntry {
+    pub name: OsString,
+    pub entry_type: FileType,
+}
+
+impl BaseDirEntry {
+    fn from(dir_entry: &DirEntry) -> Result<BaseDirEntry> {
+        let fs_file_type = dir_entry
+            .file_type()
+            .with_context(|| format!("BaseDirEntry.from({:?})", dir_entry.path()))?;
+        let file_type = FileType::from(fs_file_type)
+            .with_context(|| format!("BaseDirEntry.from({:?})", dir_entry.path()))?;
+        Ok(BaseDirEntry {
+            name: dir_entry.file_name(),
+            entry_type: file_type,
+        })
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct DatabaseDir {
+    pub oid: PgOid,
+    pub db_name: String,
+}
 
 impl DatabaseDir {
-    #[allow(dead_code)]
-    fn oid(&self) -> DatabaseOID {
-        DatabaseOID(self.name.to_string_lossy().to_string())
+    pub fn from(dir_entry: &DirEntry) -> Result<Option<DatabaseDir>> {
+        let entry_name = dir_entry.file_name().to_string_lossy().to_string();
+        let entry_type = dir_entry
+            .file_type()
+            .with_context(|| format!("DirEntry(file_name = {}).file_type()", entry_name))?;
+
+        if !entry_type.is_dir() {
+            return Ok(None);
+        }
+
+        match entry_name.parse::<u32>() {
+            Ok(oid) => Ok(Some(DatabaseDir {
+                oid: PgOid(oid),
+                db_name: "TODO: database name".into(),
+            })),
+            Err(_) => Ok(None),
+        }
+    }
+
+    pub fn dir_name(&self) -> String {
+        let DatabaseDir {
+            oid: PgOid(oid), ..
+        } = self;
+        format!("{}", oid)
     }
 }
 
@@ -70,21 +134,19 @@ impl<'a> BaseDirReader for DefaultBaseDirReader<'a> {
             .map(|maybe_dir_entry| {
                 maybe_dir_entry
                     .map_err(Error::new)
-                    .map_or_else(BaseDirItem::Error, to_base_dir_item)
+                    .map_or_else(BaseDirItem::Error, |dir_entry| to_base_dir_item(&dir_entry))
             })
             .collect();
         Ok(BaseDir(base_dir_items))
     }
 }
 
-fn to_base_dir_item(dir_entry: DirEntry) -> BaseDirItem {
-    match dir_entry.file_type() {
-        Ok(file_type) if file_type.is_dir() => BaseDirItem::DatabaseDir(DatabaseDir {
-            name: dir_entry.file_name(),
-        }),
-        Ok(_) => BaseDirItem::Unknown {
-            file_name: dir_entry.file_name(),
-        },
-        Err(err) => BaseDirItem::Error(Error::new(err)),
+fn to_base_dir_item(dir_entry: &DirEntry) -> BaseDirItem {
+    match DatabaseDir::from(dir_entry) {
+        Ok(Some(database_dir)) => BaseDirItem::DatabaseDir(database_dir),
+        Ok(None) => {
+            BaseDirEntry::from(dir_entry).map_or_else(BaseDirItem::Error, BaseDirItem::UnknownEntry)
+        }
+        Err(err) => BaseDirItem::Error(err),
     }
 }

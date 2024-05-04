@@ -1,5 +1,6 @@
 use colored::Color;
 
+pub mod common;
 pub mod handlers;
 pub mod readers;
 pub mod test_utils;

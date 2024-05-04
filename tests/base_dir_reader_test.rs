@@ -1,8 +1,6 @@
 mod utils;
 
-use pg_browser::readers::root_dir_readers::base_reader::{
-    BaseDir, BaseDirItem, BaseDirReader, DatabaseDir,
-};
+use pg_browser::readers::root_dir_readers::base_reader::{BaseDir, BaseDirItem, BaseDirReader};
 use pg_browser::readers::{
     database_file_layout::PGData, root_dir_readers::base_reader::base_dir_reader,
 };
@@ -23,9 +21,9 @@ fn reads_base_dir(pgdata: PGData) {
     assert_eq!(
         base,
         BaseDir(vec![
-            BaseDirItem::DatabaseDir(DatabaseDir { name: "1".into() }),
-            BaseDirItem::DatabaseDir(DatabaseDir { name: "4".into() }),
-            BaseDirItem::DatabaseDir(DatabaseDir { name: "5".into() }),
+            BaseDirItem::database_dir(1, "TODO: database name"),
+            BaseDirItem::database_dir(4, "TODO: database name"),
+            BaseDirItem::database_dir(5, "TODO: database name")
         ])
     )
 }
