@@ -14,7 +14,9 @@ fn main() {
     let term_size = TermSize::new(&termsize::get().unwrap());
     let readers = reader_factory();
     let result = find_handler(root_handler, &args[1..]).map_or_else(string_iter, |handler| {
-        handler.handle(&term_size, readers.as_ref())
+        handler
+            .handle(&term_size, readers.as_ref())
+            .unwrap_or_else(|err| Box::new(vec![format!("Error: {err}")].into_iter()))
     });
     for line in result {
         print!("{line}");

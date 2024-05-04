@@ -1,9 +1,10 @@
 use std::{
     ffi::OsString,
     fs::{read_dir, DirEntry},
-    io::{self, Error},
     path::Path,
 };
+
+use anyhow::{Context, Error};
 
 pub fn base_dir_reader(path: &Path) -> impl BaseDirReader + '_ {
     DefaultBaseDirReader { path }
@@ -16,11 +17,17 @@ pub trait BaseDirReader {
 #[derive(Debug, PartialEq)]
 pub struct BaseDir(pub Vec<BaseDirItem>);
 
+impl BaseDir {
+    pub fn items(&self) -> &[BaseDirItem] {
+        &self.0[..]
+    }
+}
+
 #[derive(Debug)]
 pub enum BaseDirItem {
     DatabaseDir(DatabaseDir),
     Unknown { file_name: OsString },
-    Error(io::Error),
+    Error(anyhow::Error),
 }
 
 impl PartialEq for BaseDirItem {
@@ -45,6 +52,7 @@ pub struct DatabaseDir {
 pub struct DatabaseOID(String);
 
 impl DatabaseDir {
+    #[allow(dead_code)]
     fn oid(&self) -> DatabaseOID {
         DatabaseOID(self.name.to_string_lossy().to_string())
     }
@@ -55,11 +63,13 @@ struct DefaultBaseDirReader<'a> {
 }
 
 impl<'a> BaseDirReader for DefaultBaseDirReader<'a> {
-    fn read_base_dir(&self) -> Result<BaseDir, Error> {
-        let read_dir = read_dir(self.path)?;
+    fn read_base_dir(&self) -> Result<BaseDir, anyhow::Error> {
+        let read_dir = read_dir(self.path).with_context(|| format!("Reading {:?}", self.path))?;
         let base_dir_items: Vec<BaseDirItem> = read_dir
             .map(|maybe_dir_entry| {
-                maybe_dir_entry.map_or_else(BaseDirItem::Error, to_base_dir_item)
+                maybe_dir_entry
+                    .map_err(Error::new)
+                    .map_or_else(BaseDirItem::Error, to_base_dir_item)
             })
             .collect();
         Ok(BaseDir(base_dir_items))
@@ -74,6 +84,6 @@ fn to_base_dir_item(dir_entry: DirEntry) -> BaseDirItem {
         Ok(_) => BaseDirItem::Unknown {
             file_name: dir_entry.file_name(),
         },
-        Err(err) => BaseDirItem::Error(err),
+        Err(err) => BaseDirItem::Error(Error::new(err)),
     }
 }

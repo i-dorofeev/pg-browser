@@ -1,10 +1,14 @@
 use std::path::PathBuf;
 
-use colored::{Color, Colorize};
+use anyhow::Error;
+use colored::Colorize;
 
-use crate::readers::{
-    root_dir_reader::{PgDataItem, PgDataItemState, PgDataItemType},
-    ReaderFactory,
+use crate::{
+    readers::{
+        root_dir_reader::{PgDataItem, PgDataItemState, PgDataItemType},
+        ReaderFactory,
+    },
+    GRAY,
 };
 
 use super::{
@@ -16,10 +20,10 @@ pub struct RootHandler {
 }
 
 impl Handler for RootHandler {
-    fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String> {
+    fn get_next(self: Box<Self>, param: &str) -> Result<Box<dyn Handler>, String> {
         match param {
             "base" => Ok(Box::new(BaseHandler {
-                base_path: self.pgdata.join("base"),
+                pgdata: self.pgdata,
             })),
             "a" => Ok(Box::new(AHandler {})),
             "b" => Ok(Box::new(BHandler {})),
@@ -29,7 +33,11 @@ impl Handler for RootHandler {
         }
     }
 
-    fn handle<'a>(&self, term_size: &'a TermSize, readers: &dyn ReaderFactory) -> StringIter<'a> {
+    fn handle<'a>(
+        &self,
+        term_size: &'a TermSize,
+        readers: &dyn ReaderFactory,
+    ) -> Result<StringIter<'a>, Error> {
         let root_dir_reader = readers.root_dir_reader(&self.pgdata);
         let pgdata_items = root_dir_reader.known_pgdata_items();
         let name_col_width = pgdata_items
@@ -38,20 +46,14 @@ impl Handler for RootHandler {
             .max()
             .unwrap_or(0);
 
-        Box::new(
+        Ok(Box::new(
             pgdata_items
                 .into_iter()
                 .map(move |item| Self::format_pgdata_item(item, name_col_width, term_size.cols))
                 .map(|item_str| format!("\n{item_str}")),
-        )
+        ))
     }
 }
-
-const GRAY: Color = Color::TrueColor {
-    r: 127,
-    g: 127,
-    b: 127,
-};
 
 impl RootHandler {
     fn format_pgdata_item(
@@ -111,23 +113,31 @@ impl RootHandler {
 
 struct AHandler {}
 impl Handler for AHandler {
-    fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String> {
+    fn get_next(self: Box<Self>, param: &str) -> Result<Box<dyn Handler>, String> {
         Err(format!("AHandler: Unknown param {param}"))
     }
 
-    fn handle<'a>(&self, _term_size: &'a TermSize, _readers: &dyn ReaderFactory) -> StringIter<'a> {
-        string_iter("Handled by AHandler".to_string())
+    fn handle<'a>(
+        &self,
+        _term_size: &'a TermSize,
+        _readers: &dyn ReaderFactory,
+    ) -> Result<StringIter<'a>, Error> {
+        Ok(string_iter("Handled by AHandler".to_string()))
     }
 }
 
 struct BHandler {}
 impl Handler for BHandler {
-    fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String> {
+    fn get_next(self: Box<Self>, param: &str) -> Result<Box<dyn Handler>, String> {
         Err(format!("BHandler: Unknown param {param}"))
     }
 
-    fn handle<'a>(&self, _term_size: &'a TermSize, _readers: &dyn ReaderFactory) -> StringIter<'a> {
-        string_iter("Handled by BHandler".to_string())
+    fn handle<'a>(
+        &self,
+        _term_size: &'a TermSize,
+        _readers: &dyn ReaderFactory,
+    ) -> Result<StringIter<'a>, Error> {
+        Ok(string_iter("Handled by BHandler".to_string()))
     }
 }
 
@@ -135,15 +145,19 @@ struct ArbHandler {
     val: String,
 }
 impl Handler for ArbHandler {
-    fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String> {
+    fn get_next(self: Box<Self>, param: &str) -> Result<Box<dyn Handler>, String> {
         let this_val = &self.val;
         Ok(Box::from(ArbHandler {
             val: format!("{this_val}/{param}"),
         }))
     }
 
-    fn handle<'a>(&self, _term_size: &'a TermSize, _readers: &dyn ReaderFactory) -> StringIter<'a> {
-        string_iter(self.val.clone())
+    fn handle<'a>(
+        &self,
+        _term_size: &'a TermSize,
+        _readers: &dyn ReaderFactory,
+    ) -> Result<StringIter<'a>, Error> {
+        Ok(string_iter(self.val.clone()))
     }
 }
 
@@ -151,14 +165,14 @@ impl Handler for ArbHandler {
 mod tests {
     use std::{io, path::Path};
 
-    use colored::{Color, Colorize};
-
     use crate::{
-        handlers::{root_handler::tests::colors::*, Handler, TermSize},
+        handlers::{Handler, TermSize},
         readers::{
             root_dir_reader::{PgDataItem, PgDataItemState, PgDataItemType, RootDirReader},
             ReaderFactory,
         },
+        test_utils::colors::{BLUE, GRAY, GREEN, NONE, RED, YELLOW},
+        test_utils::line,
     };
 
     use super::RootHandler;
@@ -220,17 +234,6 @@ mod tests {
         }
     }
 
-    mod colors {
-        use colored::Color;
-
-        pub const BLUE: Option<Color> = Some(Color::Blue);
-        pub const GRAY: Option<Color> = Some(super::super::GRAY);
-        pub const GREEN: Option<Color> = Some(Color::Green);
-        pub const RED: Option<Color> = Some(Color::Red);
-        pub const YELLOW: Option<Color> = Some(Color::Yellow);
-        pub const NONE: Option<Color> = None;
-    }
-
     #[test]
     fn root_hander_renders_root_dir_contents() {
         // given
@@ -246,25 +249,14 @@ mod tests {
         let readers = ReaderFactoryStub;
 
         // when
-        let result = root_handler.handle(&term_size, &readers);
+        let result = root_handler.handle(&term_size, &readers).unwrap();
 
         // then
-        fn line(str: &str, colors: &[Option<Color>]) -> String {
-            let p = str.split('|');
-            let line = p
-                .zip(colors)
-                .map(|(s, color)| {
-                    color.map_or_else(|| s.to_string(), |c| format!("{}", s.color(c)))
-                })
-                .collect::<Vec<String>>()
-                .concat();
-            format!("\n{}", line)
-        }
-
         #[rustfmt::skip]
         assert_eq!(
             result.collect::<Vec<String>>().concat(),
             [
+                line("", &[]),
                 line("F| |present_file.aa  | |word1word2", &[ GREEN, NONE, BLUE, NONE, NONE]),
                 line(" | |                 | |word3word4", &[  NONE, NONE, NONE, NONE, NONE]),
                 line("F| |missing_file.bbbb| |word5word6", &[YELLOW, NONE, GRAY, NONE, NONE]),
@@ -277,7 +269,7 @@ mod tests {
                 line("D| |error_dir.ccc    | |word9",      &[   RED, NONE,  RED, NONE, NONE]),
 
             ]
-            .concat()
+            .join("\n")
         );
     }
 }

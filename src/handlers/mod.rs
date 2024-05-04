@@ -1,6 +1,8 @@
 pub mod root_dir_handlers;
 pub mod root_handler;
 
+use anyhow::Error;
+
 use crate::readers::ReaderFactory;
 
 pub fn find_handler(
@@ -37,12 +39,18 @@ pub fn string_iter<'a>(str: String) -> StringIter<'a> {
 }
 
 pub trait Handler {
-    fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String>;
-    fn handle<'a>(&self, term_size: &'a TermSize, readers: &dyn ReaderFactory) -> StringIter<'a>;
+    fn get_next(self: Box<Self>, param: &str) -> Result<Box<dyn Handler>, String>;
+    fn handle<'a>(
+        &self,
+        term_size: &'a TermSize,
+        readers: &dyn ReaderFactory,
+    ) -> Result<StringIter<'a>, Error>;
 }
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Error;
+
     use crate::readers::{reader_factory, ReaderFactory};
 
     use super::{find_handler, Handler, StringIter, TermSize};
@@ -65,7 +73,7 @@ mod tests {
         // then
         assert_eq!(
             &vec!["a b c / TermSize { rows: 20, cols: 80 }".to_string()],
-            &result.collect::<Vec<String>>(),
+            &result.unwrap().collect::<Vec<String>>(),
             "mock handler should collect all the arguments"
         );
     }
@@ -89,7 +97,7 @@ mod tests {
     }
 
     impl Handler for MockHandler {
-        fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String> {
+        fn get_next(self: Box<Self>, param: &str) -> Result<Box<dyn Handler>, String> {
             let mut new_args = self.collected_args.to_vec();
             new_args.push(param.to_string());
 
@@ -102,21 +110,21 @@ mod tests {
             &self,
             term_size: &'a TermSize,
             _readers: &dyn ReaderFactory,
-        ) -> StringIter<'a> {
-            Box::new(
+        ) -> Result<StringIter<'a>, Error> {
+            Ok(Box::new(
                 vec![format!(
                     "{} / {:?}",
                     self.collected_args.join(" "),
                     term_size
                 )]
                 .into_iter(),
-            )
+            ))
         }
     }
 
     struct ErrHandler {}
     impl Handler for ErrHandler {
-        fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String> {
+        fn get_next(self: Box<Self>, param: &str) -> Result<Box<dyn Handler>, String> {
             Err(format!("{param} is not supported"))
         }
 
@@ -124,7 +132,7 @@ mod tests {
             &self,
             _term_size: &'a TermSize,
             _readers: &dyn ReaderFactory,
-        ) -> StringIter<'a> {
+        ) -> Result<StringIter<'a>, Error> {
             todo!()
         }
     }

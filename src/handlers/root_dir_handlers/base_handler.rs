@@ -1,21 +1,126 @@
+use crate::readers::root_dir_readers::base_reader::{BaseDirItem, DatabaseDir};
 use std::path::PathBuf;
 
-use crate::handlers::Handler;
+use anyhow::Error;
+use colored::Colorize;
+
+use crate::{
+    handlers::{Handler, StringIter},
+    GRAY,
+};
 
 pub struct BaseHandler {
-    pub base_path: PathBuf,
+    pub pgdata: PathBuf,
 }
 
 impl Handler for BaseHandler {
-    fn get_next(&self, param: &str) -> Result<Box<dyn Handler>, String> {
+    fn get_next(self: Box<Self>, _param: &str) -> Result<Box<dyn Handler>, String> {
         todo!()
     }
 
     fn handle<'a>(
         &self,
-        term_size: &'a crate::handlers::TermSize,
+        _term_size: &'a crate::handlers::TermSize,
         readers: &dyn crate::readers::ReaderFactory,
-    ) -> crate::handlers::StringIter<'a> {
-        todo!()
+    ) -> Result<StringIter<'a>, Error> {
+        let path = self.pgdata.join("base");
+        let reader = readers.base_dir_reader(path.as_path());
+        let base_dir = reader.read_base_dir()?;
+
+        let mut output = vec![];
+        output.push(format!("{}", self.pgdata.to_string_lossy().color(GRAY)));
+        output.push(format!("{}", "/base".yellow()));
+        output.push(format!("\n{}", format!("Each directory stores data for each database in the cluster and is named after the database's OID in {}", "pg_database".color(GRAY))));
+        base_dir
+            .items()
+            .iter()
+            .map(format_base_dir_item)
+            .for_each(|item| output.push(format!("\n{}", item)));
+        output.push("\n".to_string());
+        Ok(Box::new(output.into_iter()))
+    }
+}
+
+fn format_base_dir_item(base_dir_item: &BaseDirItem) -> String {
+    match base_dir_item {
+        BaseDirItem::DatabaseDir(DatabaseDir { name }) => {
+            format!("D {}", name.to_string_lossy().bright_blue())
+        }
+        BaseDirItem::Unknown { file_name } => {
+            format!("F {}", file_name.to_string_lossy().color(GRAY))
+        }
+        BaseDirItem::Error(err) => format!("E {}", err.to_string().red()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use anyhow::anyhow;
+    use anyhow::Error;
+
+    use crate::readers::root_dir_readers::base_reader::{
+        BaseDir, BaseDirItem, BaseDirReader, DatabaseDir,
+    };
+    use crate::{
+        handlers::{Handler, TermSize},
+        readers::ReaderFactory,
+        test_utils::colors::{BRIGHT_BLUE, GRAY, NONE, RED, YELLOW},
+        test_utils::line,
+    };
+
+    use super::BaseHandler;
+
+    #[test]
+    fn base_hander_renders_base_dir_contents() {
+        // given
+        let base_handler = BaseHandler {
+            pgdata: "/pgdata".into(),
+        };
+
+        let term_size = TermSize {
+            rows: 100,
+            cols: 30,
+        };
+
+        let readers = ReaderFactoryStub;
+
+        // when
+        let result = base_handler.handle(&term_size, &readers).unwrap();
+
+        // then
+        #[rustfmt::skip]
+        assert_eq!(
+            result.collect::<Vec<String>>().concat(),
+            [
+                line("/pgdata|/base", &[GRAY, YELLOW]),
+                line("Each directory stores data for each database in the cluster and is named after the database's OID in |pg_database", &[NONE, GRAY]),
+                line("D |1", &[NONE, BRIGHT_BLUE]),
+                line("F |2", &[NONE, GRAY]),
+                line("E |unexpected error", &[NONE, RED]),
+                line("", &[])
+            ]
+            .join("\n")
+        );
+    }
+
+    struct ReaderFactoryStub;
+    impl ReaderFactory for ReaderFactoryStub {
+        fn base_dir_reader<'a>(&self, _base_dir_path: &'a Path) -> Box<dyn BaseDirReader + 'a> {
+            Box::new(BaseDirReaderStub)
+        }
+    }
+
+    struct BaseDirReaderStub;
+    impl BaseDirReader for BaseDirReaderStub {
+        #[rustfmt::skip]
+        fn read_base_dir(&self) -> Result<BaseDir, Error> {
+            Ok(BaseDir(vec![
+                BaseDirItem::DatabaseDir(DatabaseDir { name: "1".into() }),
+                BaseDirItem::Unknown { file_name: "2".into() },
+                BaseDirItem::Error(anyhow!("unexpected error")),
+            ]))
+        }
     }
 }
