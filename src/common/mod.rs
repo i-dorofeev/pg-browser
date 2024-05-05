@@ -5,6 +5,8 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 
+pub mod result_option;
+
 #[derive(Debug, PartialEq)]
 pub struct PgOid(pub u32);
 
