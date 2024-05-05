@@ -29,6 +29,7 @@ impl<T> ResultOption<T> for Result<Option<T>> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::stringify;
     use anyhow::{anyhow, Result};
     use pretty_assertions::assert_eq;
     use rstest::rstest;
@@ -68,9 +69,5 @@ mod tests {
 
         // then
         assert_eq!(result.map_err(stringify), expected.map_err(stringify));
-    }
-
-    fn stringify(err: anyhow::Error) -> String {
-        format!("{:?}", err)
     }
 }

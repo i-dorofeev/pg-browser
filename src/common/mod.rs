@@ -64,3 +64,17 @@ impl SimpleDirEntry {
         })
     }
 }
+
+pub fn stringify(err: anyhow::Error) -> String {
+    format!("{:?}", err)
+}
+
+#[derive(Debug)]
+pub struct Error(pub anyhow::Error);
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        let Error(err_this) = self;
+        let Error(err_other) = other;
+        format!("{:?}", err_this) == format!("{:?}", err_other)
+    }
+}
