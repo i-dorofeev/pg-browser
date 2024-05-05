@@ -1,6 +1,6 @@
 use crate::{
-    common::render_file_type,
-    readers::root_dir_readers::base_reader::{BaseDirEntry, BaseDirItem},
+    common::{render_file_type, SimpleDirEntry},
+    readers::root_dir_readers::base_reader::BaseDirItem,
 };
 use std::path::PathBuf;
 
@@ -52,7 +52,7 @@ fn format_base_dir_item(base_dir_item: &BaseDirItem) -> String {
             // and string representation maximum length of 10 chars
             format!("D {:>10} {}", dir.dir_name().bright_blue(), dir.db_name)
         }
-        BaseDirItem::UnknownEntry(BaseDirEntry { name, entry_type }) => {
+        BaseDirItem::UnknownEntry(SimpleDirEntry { name, entry_type }) => {
             format!(
                 "{} {}",
                 render_file_type(entry_type),

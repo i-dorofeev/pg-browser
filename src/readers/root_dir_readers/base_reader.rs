@@ -1,12 +1,11 @@
 use std::{
-    ffi::OsString,
     fs::{read_dir, DirEntry},
     path::Path,
 };
 
 use anyhow::{Context, Error, Result};
 
-use crate::common::{FileType, PgOid};
+use crate::common::{FileType, PgOid, SimpleDirEntry};
 
 pub fn base_dir_reader(path: &Path) -> impl BaseDirReader + '_ {
     DefaultBaseDirReader { path }
@@ -29,7 +28,7 @@ impl BaseDir {
 #[derive(Debug)]
 pub enum BaseDirItem {
     DatabaseDir(DatabaseDir),
-    UnknownEntry(BaseDirEntry),
+    UnknownEntry(SimpleDirEntry),
     Error(anyhow::Error),
 }
 
@@ -55,36 +54,16 @@ impl BaseDirItem {
     }
 
     pub fn unknown_file(name: &'static str) -> BaseDirItem {
-        BaseDirItem::UnknownEntry(BaseDirEntry {
+        BaseDirItem::UnknownEntry(SimpleDirEntry {
             name: name.into(),
             entry_type: FileType::File,
         })
     }
 
     pub fn unknown_dir(name: &'static str) -> BaseDirItem {
-        BaseDirItem::UnknownEntry(BaseDirEntry {
+        BaseDirItem::UnknownEntry(SimpleDirEntry {
             name: name.into(),
             entry_type: FileType::Dir,
-        })
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct BaseDirEntry {
-    pub name: OsString,
-    pub entry_type: FileType,
-}
-
-impl BaseDirEntry {
-    fn from(dir_entry: &DirEntry) -> Result<BaseDirEntry> {
-        let fs_file_type = dir_entry
-            .file_type()
-            .with_context(|| format!("BaseDirEntry.from({:?})", dir_entry.path()))?;
-        let file_type = FileType::from(fs_file_type)
-            .with_context(|| format!("BaseDirEntry.from({:?})", dir_entry.path()))?;
-        Ok(BaseDirEntry {
-            name: dir_entry.file_name(),
-            entry_type: file_type,
         })
     }
 }
@@ -106,12 +85,12 @@ impl DatabaseDir {
             return Ok(None);
         }
 
-        match entry_name.parse::<u32>() {
-            Ok(oid) => Ok(Some(DatabaseDir {
-                oid: PgOid(oid),
+        match PgOid::try_parse(&entry_name) {
+            Some(oid) => Ok(Some(DatabaseDir {
+                oid,
                 db_name: "TODO: database name".into(),
             })),
-            Err(_) => Ok(None),
+            None => Ok(None),
         }
     }
 
@@ -144,9 +123,8 @@ impl<'a> BaseDirReader for DefaultBaseDirReader<'a> {
 fn to_base_dir_item(dir_entry: &DirEntry) -> BaseDirItem {
     match DatabaseDir::from(dir_entry) {
         Ok(Some(database_dir)) => BaseDirItem::DatabaseDir(database_dir),
-        Ok(None) => {
-            BaseDirEntry::from(dir_entry).map_or_else(BaseDirItem::Error, BaseDirItem::UnknownEntry)
-        }
+        Ok(None) => SimpleDirEntry::from(dir_entry)
+            .map_or_else(BaseDirItem::Error, BaseDirItem::UnknownEntry),
         Err(err) => BaseDirItem::Error(err),
     }
 }
