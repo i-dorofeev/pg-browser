@@ -151,6 +151,42 @@ mod tests {
     }
 }
 
+mod fork_type_impl {
+    use super::ForkType;
+
+    impl ForkType {
+        pub fn try_parse(s: Option<&str>) -> Option<ForkType> {
+            match s {
+                None => Some(ForkType::Main),
+                Some("fsm") => Some(ForkType::FreeSpaceMap),
+                Some("vm") => Some(ForkType::VisibilityMap),
+                _ => None,
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use pretty_assertions::assert_eq;
+        use rstest::rstest;
+
+        use crate::readers::root_dir_readers::base_dir_readers::db_dir_reader::ForkType;
+
+        #[rstest]
+        #[case(None, Some(ForkType::Main))]
+        #[case(Some("fsm"), Some(ForkType::FreeSpaceMap))]
+        #[case(Some("vm"), Some(ForkType::VisibilityMap))]
+        #[case(Some("arb_string"), None)]
+        fn parses_fork_type(#[case] s: Option<&str>, #[case] expected: Option<ForkType>) {
+            // when
+            let result = ForkType::try_parse(s);
+
+            // then
+            assert_eq!(result, expected);
+        }
+    }
+}
+
 mod fork_segment_file_impl {
     use once_cell::sync::Lazy;
     use regex::Regex;
@@ -241,17 +277,6 @@ mod fork_segment_file_impl {
 
             // then
             assert_eq!(parsed, None);
-        }
-    }
-}
-
-impl ForkType {
-    fn try_parse(s: Option<&str>) -> Option<ForkType> {
-        match s {
-            None => Some(ForkType::Main),
-            Some("fsm") => Some(ForkType::FreeSpaceMap),
-            Some("vm") => Some(ForkType::VisibilityMap),
-            _ => None,
         }
     }
 }
