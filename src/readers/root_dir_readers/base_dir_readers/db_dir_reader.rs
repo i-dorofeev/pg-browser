@@ -1,11 +1,8 @@
-use std::{
-    fs::{read_dir, DirEntry},
-    path::PathBuf,
-};
+use std::{fs::read_dir, path::PathBuf};
 
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{Context, Error, Result};
 
-use crate::common::{self, result_option::ResultOption};
+use crate::common;
 use crate::common::{PgOid, SimpleDirEntry};
 
 /*******************/
@@ -78,77 +75,88 @@ impl DbDirReader for DefaultDbDirReader {
     }
 }
 
-impl DbDirItem {
-    fn from_dir_entry(dir_entry: DirEntry) -> DbDirItem {
-        DbDirItem::try_from_dir_entry(&dir_entry).unwrap_or_else(DbDirItem::error)
-    }
+mod db_dir_item_impl {
+    use anyhow::anyhow;
+    use std::fs::DirEntry;
 
-    fn try_from_dir_entry(dir_entry: &DirEntry) -> Result<DbDirItem> {
-        let dir_entry_name = dir_entry
-            .file_name()
-            .into_string()
-            .map_err(|os_str| anyhow!("Cannot convert OsStr:{:?} into String", os_str))?;
-
-        DbDirItem::fork_segment_file(&dir_entry_name)
-            .or_if_empty(|| DbDirItem::file_node_map_file(&dir_entry_name))
-            .or_if_empty(|| DbDirItem::pg_version_file(&dir_entry_name))
-            .otherwise(|| SimpleDirEntry::from(dir_entry).map(DbDirItem::UnknownEntry))
-    }
-
-    fn fork_segment_file(dir_entry_name: &str) -> Result<Option<DbDirItem>> {
-        Ok(ForkSegmentFile::try_parse(dir_entry_name).map(DbDirItem::ForkSegmentFile))
-    }
-
-    fn file_node_map_file(dir_entry_name: &str) -> Result<Option<DbDirItem>> {
-        match dir_entry_name {
-            "pg_filenode.map" => Ok(Some(DbDirItem::FileNodeMapFile)),
-            _ => Ok(None),
-        }
-    }
-
-    fn pg_version_file(dir_entry_name: &str) -> Result<Option<DbDirItem>> {
-        match dir_entry_name {
-            "PG_VERSION" => Ok(Some(DbDirItem::PgVersionFile)),
-            _ => Ok(None),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
     use anyhow::Result;
-    use pretty_assertions::assert_eq;
-    use rstest::rstest;
 
-    use crate::common::stringify;
-    use crate::readers::root_dir_readers::base_dir_readers::db_dir_reader::DbDirItem;
+    use crate::common::{result_option::ResultOption, SimpleDirEntry};
 
-    #[rstest]
-    #[case("pg_filenode.map", Ok(Some(DbDirItem::FileNodeMapFile)))]
-    #[case("some_other_file", Ok(None))]
-    fn parses_file_node_map_file(
-        #[case] file_name: &str,
-        #[case] expected: Result<Option<DbDirItem>>,
-    ) {
-        // when
-        let result = DbDirItem::file_node_map_file(file_name);
+    use super::{DbDirItem, ForkSegmentFile};
 
-        // then
-        assert_eq!(result.map_err(stringify), expected.map_err(stringify));
+    impl DbDirItem {
+        pub(crate) fn from_dir_entry(dir_entry: DirEntry) -> DbDirItem {
+            DbDirItem::try_from_dir_entry(&dir_entry).unwrap_or_else(DbDirItem::error)
+        }
+
+        fn try_from_dir_entry(dir_entry: &DirEntry) -> Result<DbDirItem> {
+            let dir_entry_name = dir_entry
+                .file_name()
+                .into_string()
+                .map_err(|os_str| anyhow!("Cannot convert OsStr:{:?} into String", os_str))?;
+
+            DbDirItem::fork_segment_file(&dir_entry_name)
+                .or_if_empty(|| DbDirItem::file_node_map_file(&dir_entry_name))
+                .or_if_empty(|| DbDirItem::pg_version_file(&dir_entry_name))
+                .otherwise(|| SimpleDirEntry::from(dir_entry).map(DbDirItem::UnknownEntry))
+        }
+
+        fn fork_segment_file(dir_entry_name: &str) -> Result<Option<DbDirItem>> {
+            Ok(ForkSegmentFile::try_parse(dir_entry_name).map(DbDirItem::ForkSegmentFile))
+        }
+
+        fn file_node_map_file(dir_entry_name: &str) -> Result<Option<DbDirItem>> {
+            match dir_entry_name {
+                "pg_filenode.map" => Ok(Some(DbDirItem::FileNodeMapFile)),
+                _ => Ok(None),
+            }
+        }
+
+        fn pg_version_file(dir_entry_name: &str) -> Result<Option<DbDirItem>> {
+            match dir_entry_name {
+                "PG_VERSION" => Ok(Some(DbDirItem::PgVersionFile)),
+                _ => Ok(None),
+            }
+        }
     }
 
-    #[rstest]
-    #[case("PG_VERSION", Ok(Some(DbDirItem::PgVersionFile)))]
-    #[case("some_other_file", Ok(None))]
-    fn parses_pg_version_file(
-        #[case] file_name: &str,
-        #[case] expected: Result<Option<DbDirItem>>,
-    ) {
-        // when
-        let result = DbDirItem::pg_version_file(file_name);
+    #[cfg(test)]
+    mod tests {
+        use anyhow::Result;
+        use pretty_assertions::assert_eq;
+        use rstest::rstest;
 
-        // then
-        assert_eq!(result.map_err(stringify), expected.map_err(stringify));
+        use crate::common::stringify;
+        use crate::readers::root_dir_readers::base_dir_readers::db_dir_reader::DbDirItem;
+
+        #[rstest]
+        #[case("pg_filenode.map", Ok(Some(DbDirItem::FileNodeMapFile)))]
+        #[case("some_other_file", Ok(None))]
+        fn parses_file_node_map_file(
+            #[case] file_name: &str,
+            #[case] expected: Result<Option<DbDirItem>>,
+        ) {
+            // when
+            let result = DbDirItem::file_node_map_file(file_name);
+
+            // then
+            assert_eq!(result.map_err(stringify), expected.map_err(stringify));
+        }
+
+        #[rstest]
+        #[case("PG_VERSION", Ok(Some(DbDirItem::PgVersionFile)))]
+        #[case("some_other_file", Ok(None))]
+        fn parses_pg_version_file(
+            #[case] file_name: &str,
+            #[case] expected: Result<Option<DbDirItem>>,
+        ) {
+            // when
+            let result = DbDirItem::pg_version_file(file_name);
+
+            // then
+            assert_eq!(result.map_err(stringify), expected.map_err(stringify));
+        }
     }
 }
 
