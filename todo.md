@@ -1,0 +1,1 @@
+* functional tests for db_dir_reader
