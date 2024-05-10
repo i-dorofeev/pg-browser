@@ -38,6 +38,12 @@ impl Fingerprint {
                 file.read_to_string(&mut hash).map(|_| hash).unwrap()
             })
     }
+
+    pub fn stored_matches_actual(&self) -> bool {
+        self.load()
+            .map(|stored_hash| self.compute() == stored_hash)
+            .unwrap_or(false)
+    }
 }
 
 fn hash_dir<P>(path: P) -> Vec<u8>
