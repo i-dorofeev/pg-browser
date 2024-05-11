@@ -62,7 +62,6 @@ fn init_pgdata() {
     command
         .arg("run")
         .arg("--rm")
-        .arg("-it")
         .arg("--name")
         .arg("pg-browser")
         .arg("--user")
