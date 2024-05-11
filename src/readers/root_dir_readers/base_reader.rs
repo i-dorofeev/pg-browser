@@ -49,9 +49,10 @@ impl PartialEq for BaseDirItem {
 impl BaseDirItem {
     pub fn name(&self) -> anyhow::Result<OsString> {
         match self {
-            BaseDirItem::DatabaseDir(DatabaseDir { oid: _, db_name }) => {
-                OsString::try_from(db_name).context("")
-            }
+            BaseDirItem::DatabaseDir(DatabaseDir {
+                oid: PgOid(oid),
+                db_name: _,
+            }) => OsString::try_from(oid.to_string()).context(""),
             BaseDirItem::UnknownEntry(SimpleDirEntry {
                 name,
                 entry_type: _,
