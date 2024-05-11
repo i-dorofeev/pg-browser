@@ -1,9 +1,10 @@
 use std::{
+    ffi::OsString,
     fs::{read_dir, DirEntry},
     path::Path,
 };
 
-use anyhow::{Context, Error, Result};
+use anyhow::{bail, Context, Error, Result};
 
 use crate::common::{FileType, PgOid, SimpleDirEntry};
 
@@ -46,6 +47,19 @@ impl PartialEq for BaseDirItem {
 }
 
 impl BaseDirItem {
+    pub fn name(&self) -> anyhow::Result<OsString> {
+        match self {
+            BaseDirItem::DatabaseDir(DatabaseDir { oid: _, db_name }) => {
+                OsString::try_from(db_name).context("")
+            }
+            BaseDirItem::UnknownEntry(SimpleDirEntry {
+                name,
+                entry_type: _,
+            }) => Ok(name.to_owned()),
+            BaseDirItem::Error(_) => bail!("Error"),
+        }
+    }
+
     pub fn database_dir(pg_oid: u32, db_name: &'static str) -> BaseDirItem {
         BaseDirItem::DatabaseDir(DatabaseDir {
             oid: PgOid(pg_oid),

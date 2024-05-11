@@ -15,7 +15,9 @@ fn reads_base_dir(pgdata: PGData) {
     let reader = base_dir_reader(base.path());
 
     // when
-    let base = reader.read_base_dir().unwrap();
+    let mut base = reader.read_base_dir().unwrap();
+    let BaseDir(ref mut items) = base;
+    items.sort_by_key(|base_dir_item| base_dir_item.name().expect("BaseDirItem"));
 
     // then
     assert_eq!(
