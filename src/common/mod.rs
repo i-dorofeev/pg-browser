@@ -7,6 +7,9 @@ use anyhow::{anyhow, Context, Result};
 
 pub mod result_option;
 
+#[cfg(test)]
+pub mod test_utils;
+
 #[derive(Debug, PartialEq)]
 pub struct PgOid(pub u32);
 
