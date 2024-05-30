@@ -1,10 +1,8 @@
-use std::{
-    ffi::OsString,
-    fs::{DirEntry, FileType as FsFileType},
-};
+use std::ffi::OsString;
 
 use anyhow::{anyhow, Context, Result};
 
+pub mod fs;
 pub mod result_option;
 
 #[cfg(test)]
@@ -30,7 +28,7 @@ pub enum FileType {
 }
 
 impl FileType {
-    pub fn from(file_type: FsFileType) -> Result<FileType> {
+    pub fn from(file_type: std::fs::FileType) -> Result<FileType> {
         match file_type {
             _ if file_type.is_dir() => Ok(FileType::Dir),
             _ if file_type.is_file() => Ok(FileType::File),
@@ -55,7 +53,7 @@ pub struct SimpleDirEntry {
 
 impl SimpleDirEntry {
     // TODO: tests for SimpleDirEntry::from
-    pub fn from(dir_entry: &DirEntry) -> Result<SimpleDirEntry> {
+    pub fn from(dir_entry: &std::fs::DirEntry) -> Result<SimpleDirEntry> {
         let fs_file_type = dir_entry
             .file_type()
             .with_context(|| format!("SimpleDirEntry.from({:?})", dir_entry.path()))?;
