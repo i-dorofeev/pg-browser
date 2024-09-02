@@ -1,66 +1,80 @@
 use crate::{
-    common::{render_file_type, SimpleDirEntry},
-    readers::root_dir_readers::base_reader::BaseDirItem,
+    common::fs::{render_file_type, DirEntry},
+    pgdata::base::{Base, BaseDirItem},
 };
-use std::path::PathBuf;
 
-use anyhow::Error;
+use anyhow::anyhow;
 use colored::Colorize;
 
-use crate::{
-    handlers::{Handler, StringIter},
-    GRAY,
-};
+use crate::{handlers::Handler, GRAY};
 
-pub struct BaseHandler {
-    pub pgdata: PathBuf,
+pub struct BaseHandler<T: Base> {
+    pub base: T,
 }
 
-impl Handler for BaseHandler {
-    fn get_next(self: Box<Self>, _param: &str) -> Result<Box<dyn Handler>, String> {
+impl<T: Base> Handler for BaseHandler<T> {
+    fn get_next(self: Box<Self>, _param: &str) -> anyhow::Result<Box<dyn Handler>> {
         todo!()
     }
 
     fn handle<'a>(
         &self,
         _term_size: &'a crate::handlers::TermSize,
-        readers: &dyn crate::readers::ReaderFactory,
-    ) -> Result<StringIter<'a>, Error> {
-        let path = self.pgdata.join("base");
-        let reader = readers.base_dir_reader(path.as_path());
-        let base_dir = reader.read_base_dir()?;
+        mut write: Box<&mut dyn std::io::Write>,
+    ) -> anyhow::Result<()> {
+        write!(
+            write,
+            "{}",
+            self.base
+                .path()
+                .parent()
+                .expect("pgdata path")
+                .to_string_lossy()
+                .color(GRAY)
+        )?;
+        write!(write, "{}", "/base".yellow())?;
+        write!(write, "\nEach directory stores data for each database in the cluster and is named after the database's OID in {}", "pg_database".color(GRAY))?;
 
-        let mut output = vec![];
-        output.push(format!("{}", self.pgdata.to_string_lossy().color(GRAY)));
-        output.push(format!("{}", "/base".yellow()));
-        output.push(format!("\n{}", format!("Each directory stores data for each database in the cluster and is named after the database's OID in {}", "pg_database".color(GRAY))));
-        base_dir
-            .items()
-            .iter()
-            .map(format_base_dir_item)
-            .for_each(|item| output.push(format!("\n{}", item)));
-        output.push("\n".to_string());
-        Ok(Box::new(output.into_iter()))
+        let items = self.base.items()?;
+        items
+            .into_iter()
+            .map(|item| {
+                writeln!(write, "")?;
+                format_base_dir_item(item, &mut write)
+            })
+            .collect::<anyhow::Result<()>>()?;
+        writeln!(write, "").map(|_| ()).map_err(|err| anyhow!(err))
     }
 }
 
-fn format_base_dir_item(base_dir_item: &BaseDirItem) -> String {
+fn format_base_dir_item(
+    base_dir_item: BaseDirItem<'_>,
+    target: &mut Box<&mut dyn std::io::Write>,
+) -> anyhow::Result<()> {
     match base_dir_item {
         BaseDirItem::DatabaseDir(dir) => {
             // dir name is a string representation of oid
             // oid is an unsigned 32-bit integer with a range of values [0; 4,294,967,295]
             // and string representation maximum length of 10 chars
-            format!("D {:>10} {}", dir.dir_name().bright_blue(), dir.db_name)
+            write!(
+                target,
+                "D {:>10} {}",
+                dir.dir_name().bright_blue(),
+                dir.db_name()
+            )
         }
-        BaseDirItem::UnknownEntry(SimpleDirEntry { name, entry_type }) => {
-            format!(
+        BaseDirItem::UnknownEntry(DirEntry { name, entry_type }) => {
+            write!(
+                target,
                 "{} {}",
-                render_file_type(entry_type),
+                render_file_type(&entry_type),
                 name.to_string_lossy().color(GRAY)
             )
         }
-        BaseDirItem::Error(err) => format!("E {}", err.to_string().red()),
+        BaseDirItem::Error(err) => write!(target, "E {}", err.to_string().red()),
     }
+    .map(|_| ())
+    .map_err(|err| anyhow!(err))
 }
 
 #[cfg(test)]
@@ -68,12 +82,11 @@ mod tests {
     use std::path::Path;
 
     use anyhow::anyhow;
-    use anyhow::Error;
+    use pretty_assertions::assert_eq;
 
-    use crate::readers::root_dir_readers::base_reader::{BaseDir, BaseDirItem, BaseDirReader};
+    use crate::pgdata::base::{Base, BaseDirItem};
     use crate::{
         handlers::{Handler, TermSize},
-        readers::ReaderFactory,
         test_utils::colors::{BRIGHT_BLUE, GRAY, NONE, RED, YELLOW},
         test_utils::line,
     };
@@ -83,24 +96,35 @@ mod tests {
     #[test]
     fn base_hander_renders_base_dir_contents() {
         // given
-        let base_handler = BaseHandler {
-            pgdata: "/pgdata".into(),
+        let base = BaseStub {
+            items: || {
+                vec![
+                    BaseDirItem::database_dir(2, "database_name_1"),
+                    BaseDirItem::database_dir(std::u32::MAX, "database_name_2"),
+                    BaseDirItem::unknown_file("some_file"),
+                    BaseDirItem::unknown_dir("some_dir"),
+                    BaseDirItem::Error(anyhow!("unexpected error")),
+                ]
+            },
         };
+
+        let base_handler = BaseHandler { base };
 
         let term_size = TermSize {
             rows: 100,
             cols: 30,
         };
 
-        let readers = ReaderFactoryStub;
+        let mut buf = Vec::new();
 
         // when
-        let result = base_handler.handle(&term_size, &readers).unwrap();
+        base_handler.handle(&term_size, Box::new(&mut buf)).unwrap();
+        let output = String::from_utf8_lossy(&buf).into_owned();
 
         // then
         #[rustfmt::skip]
         assert_eq!(
-            result.collect::<Vec<String>>().concat(),
+            output,
             [
                 line("/pgdata|/base", &[GRAY, YELLOW]),
                 line("Each directory stores data for each database in the cluster and is named after the database's OID in |pg_database", &[NONE, GRAY]),
@@ -115,24 +139,30 @@ mod tests {
         );
     }
 
-    struct ReaderFactoryStub;
-    impl ReaderFactory for ReaderFactoryStub {
-        fn base_dir_reader<'a>(&self, _base_dir_path: &'a Path) -> Box<dyn BaseDirReader + 'a> {
-            Box::new(BaseDirReaderStub)
-        }
+    struct BaseStub<'a, F>
+    where
+        F: Fn() -> Vec<BaseDirItem<'a>>,
+    {
+        items: F,
     }
 
-    struct BaseDirReaderStub;
-    impl BaseDirReader for BaseDirReaderStub {
-        #[rustfmt::skip]
-        fn read_base_dir(&self) -> Result<BaseDir, Error> {
-            Ok(BaseDir(vec![
-                BaseDirItem::database_dir(2, "database_name_1"),
-                BaseDirItem::database_dir(std::u32::MAX, "database_name_2"),
-                BaseDirItem::unknown_file("some_file"),
-                BaseDirItem::unknown_dir("some_dir"),
-                BaseDirItem::Error(anyhow!("unexpected error")),
-            ]))
+    impl<'a, F> Base for BaseStub<'a, F>
+    where
+        F: Fn() -> Vec<BaseDirItem<'a>>,
+    {
+        fn path(&self) -> &Path {
+            Path::new("/pgdata/base")
+        }
+
+        fn items(
+            &self,
+        ) -> anyhow::Result<
+            impl IntoIterator<
+                Item = crate::pgdata::base::BaseDirItem,
+                IntoIter = impl Iterator<Item = crate::pgdata::base::BaseDirItem>,
+            >,
+        > {
+            Ok((self.items)().into_iter())
         }
     }
 }

@@ -1,14 +1,12 @@
 pub mod root_dir_handlers;
 pub mod root_handler;
 
-use anyhow::Error;
+use std::io::Write;
 
-use crate::readers::ReaderFactory;
-
-pub fn find_handler(
-    root_handler: Box<dyn Handler>,
+pub fn find_handler<'a>(
+    root_handler: Box<dyn Handler + 'a>,
     args: &[String],
-) -> Result<Box<dyn Handler>, String> {
+) -> anyhow::Result<Box<dyn Handler + 'a>> {
     if args.is_empty() {
         Ok(root_handler)
     } else {
@@ -32,28 +30,18 @@ impl TermSize {
     }
 }
 
-pub type StringIter<'a> = Box<dyn Iterator<Item = String> + 'a>;
-
-pub fn string_iter<'a>(str: String) -> StringIter<'a> {
-    Box::new(vec![str].into_iter())
-}
-
 pub trait Handler {
-    fn get_next(self: Box<Self>, param: &str) -> Result<Box<dyn Handler>, String>;
-    fn handle<'a>(
-        &self,
-        term_size: &'a TermSize,
-        readers: &dyn ReaderFactory,
-    ) -> Result<StringIter<'a>, Error>;
+    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Handler>>;
+
+    fn handle<'a>(&self, term_size: &'a TermSize, write: Box<&mut dyn Write>)
+        -> anyhow::Result<()>;
 }
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Error;
+    use anyhow::anyhow;
 
-    use crate::readers::{reader_factory, ReaderFactory};
-
-    use super::{find_handler, Handler, StringIter, TermSize};
+    use super::{find_handler, Handler, TermSize};
 
     const TERM_SIZE: TermSize = TermSize { rows: 20, cols: 80 };
 
@@ -67,13 +55,16 @@ mod tests {
 
         // when
         let found_handler = find_handler(root_handler, &args).expect("handler is found");
-        let reader_factory = reader_factory();
-        let result = found_handler.handle(&TERM_SIZE, reader_factory.as_ref());
+
+        let mut buf = Vec::new();
+        found_handler
+            .handle(&TERM_SIZE, Box::new(&mut buf))
+            .unwrap();
+        let output = String::from_utf8(buf).unwrap();
 
         // then
         assert_eq!(
-            &vec!["a b c / TermSize { rows: 20, cols: 80 }".to_string()],
-            &result.unwrap().collect::<Vec<String>>(),
+            "a b c / TermSize { rows: 20, cols: 80 }", output,
             "mock handler should collect all the arguments"
         );
     }
@@ -89,7 +80,10 @@ mod tests {
 
         // then
         assert!(result.is_err());
-        assert_eq!(result.err().unwrap(), "aaa is not supported".to_string());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "aaa is not supported".to_string()
+        );
     }
 
     struct MockHandler {
@@ -97,7 +91,7 @@ mod tests {
     }
 
     impl Handler for MockHandler {
-        fn get_next(self: Box<Self>, param: &str) -> Result<Box<dyn Handler>, String> {
+        fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Handler>> {
             let mut new_args = self.collected_args.to_vec();
             new_args.push(param.to_string());
 
@@ -109,30 +103,24 @@ mod tests {
         fn handle<'a>(
             &self,
             term_size: &'a TermSize,
-            _readers: &dyn ReaderFactory,
-        ) -> Result<StringIter<'a>, Error> {
-            Ok(Box::new(
-                vec![format!(
-                    "{} / {:?}",
-                    self.collected_args.join(" "),
-                    term_size
-                )]
-                .into_iter(),
-            ))
+            write: Box<&mut dyn std::io::prelude::Write>,
+        ) -> anyhow::Result<()> {
+            write!(write, "{} / {:?}", self.collected_args.join(" "), term_size)
+                .map_err(|err| anyhow!(err))
         }
     }
 
     struct ErrHandler {}
     impl Handler for ErrHandler {
-        fn get_next(self: Box<Self>, param: &str) -> Result<Box<dyn Handler>, String> {
-            Err(format!("{param} is not supported"))
+        fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Handler>> {
+            Err(anyhow!("{param} is not supported"))
         }
 
         fn handle<'a>(
             &self,
             _term_size: &'a TermSize,
-            _readers: &dyn ReaderFactory,
-        ) -> Result<StringIter<'a>, Error> {
+            _write: Box<&mut dyn std::io::prelude::Write>,
+        ) -> anyhow::Result<()> {
             todo!()
         }
     }

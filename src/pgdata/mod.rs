@@ -1,4 +1,4 @@
-mod base;
+pub mod base;
 mod current_logfiles;
 mod global;
 mod pg_commit_ts;
@@ -24,10 +24,9 @@ mod postgresql_conf;
 mod postmaster_opts;
 mod postmaster_pid;
 
-use std::{
-    fmt::Debug,
-    path::{Path, PathBuf},
-};
+use std::{fmt::Debug, path::Path, rc::Rc};
+
+use strum_macros::EnumIter;
 
 use crate::common::fs::DirEntry;
 
@@ -39,23 +38,32 @@ pub trait PGData {
     fn path(&self) -> &Path;
 
     /// Lists all expected and unexpected items of PG_DATA
-    fn items(&self) -> anyhow::Result<Box<dyn Iterator<Item = PGDataItem>>>;
+    fn list_items(
+        &self,
+    ) -> anyhow::Result<
+        impl IntoIterator<Item = PGDataItem, IntoIter = impl Iterator<Item = PGDataItem>>,
+    >;
 
     /// Represents PG_DATA/base directory
-    fn base(&self) -> Box<dyn Base>;
+    fn items(&self) -> impl PGDataItems;
+}
+
+pub trait PGDataItems {
+    /// Represents PG_DATA/base directory
+    fn base<'a, 'b>(&'a self) -> impl Base + 'b;
 }
 
 /// Represents the item in the root of PG_DATA directory
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-pub enum PGDataItem {
+pub enum PGDataItem<'a> {
     /// Represents a known PG_DATA item and its presence
-    Known(DirEntry, KnownPGDataItem, PGDataItemState),
+    Known(DirEntry<'a>, KnownPGDataItem, PGDataItemState),
 
     /// Represents an unknown PG_DATA item
-    Unknown(DirEntry),
+    Unknown(DirEntry<'a>),
 }
 
-impl Debug for PGDataItem {
+impl Debug for PGDataItem<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PGDataItem::Known(dir_entry, known_pgdata_item, state) => f.write_fmt(format_args!(
@@ -67,8 +75,32 @@ impl Debug for PGDataItem {
     }
 }
 
+impl PGDataItem<'_> {
+    pub fn known_present_dir(
+        dir_name: &'static str,
+        known_pgdata_item: KnownPGDataItem,
+    ) -> PGDataItem {
+        PGDataItem::Known(
+            DirEntry::dir(dir_name),
+            known_pgdata_item,
+            PGDataItemState::Present,
+        )
+    }
+
+    pub fn known_present_file(
+        file_name: &'static str,
+        known_pgdata_item: KnownPGDataItem,
+    ) -> PGDataItem {
+        PGDataItem::Known(
+            DirEntry::file(file_name),
+            known_pgdata_item,
+            PGDataItemState::Present,
+        )
+    }
+}
+
 /// Represents the presence of a known PG_DATA item
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Copy, Clone)]
 pub enum PGDataItemState {
     /// A known PG_DATA item is present
     Present,
@@ -77,7 +109,7 @@ pub enum PGDataItemState {
 }
 
 /// Represents all known PG_DATA items
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, EnumIter)]
 pub enum KnownPGDataItem {
     PGVersion,
     Base,
@@ -107,17 +139,12 @@ pub enum KnownPGDataItem {
 }
 
 /// Instantiates a default implementation of [PGData]
-fn pgdata(path: PathBuf) -> impl PGData {
+pub fn pgdata(path: Rc<Path>) -> impl PGData {
     default_impl::PGData::new(path)
 }
 
 mod default_impl {
-    use std::{
-        borrow::Borrow,
-        collections::BTreeSet,
-        path::{Path, PathBuf},
-        rc::Rc,
-    };
+    use std::{borrow::Borrow, collections::BTreeSet, path::Path, rc::Rc};
 
     use crate::{
         common::fs::DirEntry,
@@ -127,15 +154,15 @@ mod default_impl {
     use anyhow::anyhow;
 
     use super::{
-        current_logfiles, global, pg_commit_ts, pg_dynshmem, pg_hba_conf, pg_logical,
+        base::Base, current_logfiles, global, pg_commit_ts, pg_dynshmem, pg_hba_conf, pg_logical,
         pg_multiexact, pg_notify, pg_replslot, pg_serial, pg_snapshots, pg_stat, pg_stat_tmp,
         pg_subtrans, pg_tblspc, pg_twophase, pg_wal, pg_xact, postgresql_auto_conf,
         postmaster_opts, postmaster_pid, KnownPGDataItem, PGDataItem, PGDataItemState,
     };
 
     // allows to query set of PGDataItems by DirEntry
-    impl Borrow<DirEntry> for PGDataItem {
-        fn borrow(&self) -> &DirEntry {
+    impl<'a> Borrow<DirEntry<'a>> for PGDataItem<'a> {
+        fn borrow(&self) -> &DirEntry<'a> {
             match self {
                 PGDataItem::Known(ref dir_entry, _, _) => dir_entry,
                 PGDataItem::Unknown(ref dir_entry) => dir_entry,
@@ -147,30 +174,42 @@ mod default_impl {
         path: Rc<Path>,
     }
 
+    struct PGDataItems<'a> {
+        pgdata: &'a PGData,
+    }
+
+    impl super::PGDataItems for PGDataItems<'_> {
+        fn base<'a, 'b>(&'a self) -> impl Base + 'b {
+            base::base(&self.pgdata.path)
+        }
+    }
+
     impl super::PGData for PGData {
-        fn path(&self) -> &std::path::Path {
-            &self.path
+        fn path(&self) -> &Path {
+            self.path.borrow()
         }
 
-        fn items(&self) -> anyhow::Result<Box<dyn Iterator<Item = PGDataItem>>> {
-            let pgdata_items = read(self.path())?;
-            Ok(Box::new(pgdata_items))
+        fn list_items(
+            &self,
+        ) -> anyhow::Result<
+            impl IntoIterator<Item = PGDataItem, IntoIter = impl Iterator<Item = PGDataItem>>,
+        > {
+            let pgdata_items = read(self.path.as_ref())?;
+            Ok(pgdata_items.into_iter())
         }
 
-        fn base(&self) -> Box<dyn base::Base> {
-            todo!()
+        fn items(&self) -> impl super::PGDataItems {
+            PGDataItems { pgdata: self }
         }
     }
 
     impl PGData {
-        pub fn new(path: PathBuf) -> Self {
-            PGData {
-                path: Rc::from(path),
-            }
+        pub fn new(path: Rc<Path>) -> PGData {
+            PGData { path }
         }
     }
 
-    fn read(pgdata: &Path) -> anyhow::Result<impl Iterator<Item = PGDataItem>> {
+    fn read(pgdata: &Path) -> anyhow::Result<BTreeSet<PGDataItem>> {
         let known_items = known_items();
         let actual_items = actual_items(pgdata)?;
 
@@ -200,11 +239,11 @@ mod default_impl {
             }
         }
 
-        Ok(set.into_iter())
+        Ok(set)
     }
 
     #[rustfmt::skip]
-    fn known_items() -> Vec<(DirEntry, KnownPGDataItem)> {
+    fn known_items() -> Vec<(DirEntry<'static>, KnownPGDataItem)> {
         vec![
             (base::dir_entry(), KnownPGDataItem::Base),
             (current_logfiles::dir_entry(), KnownPGDataItem::CurrentLogFiles),
@@ -234,7 +273,7 @@ mod default_impl {
         ]
     }
 
-    fn actual_items(pgdata: &Path) -> anyhow::Result<Vec<DirEntry>> {
+    fn actual_items(pgdata: &Path) -> anyhow::Result<Vec<DirEntry<'_>>> {
         let dir = std::fs::read_dir(pgdata)?;
         dir.into_iter()
             .map(|entry| entry.map_err(|err| anyhow!(err)))
@@ -260,14 +299,14 @@ mod default_impl {
 
         use crate::common::test_utils::fixture::*;
         #[rstest]
-        fn my_test(pgdata: PathBuf) {
-            let pgdata = super::PGData::new(pgdata);
+        fn reads_root_dir(pgdata: PathBuf) {
+            let pgdata = super::PGData::new(pgdata.into());
 
-            let items = pgdata.items().expect("gets pgdata.items()");
+            let items = pgdata.list_items().expect("gets pgdata.items()");
 
             #[rustfmt::skip]
             assert_eq!(
-                items.collect::<BTreeSet<_>>(),
+                items.into_iter().collect::<BTreeSet<_>>(),
                 BTreeSet::from([
                     PGDataItem::Known(base::dir_entry(), KnownPGDataItem::Base, PGDataItemState::Present),
                     PGDataItem::Known(current_logfiles::dir_entry(), KnownPGDataItem::CurrentLogFiles , PGDataItemState::Missing), // current_logfiles not created on pgdata setup
@@ -296,6 +335,21 @@ mod default_impl {
                     PGDataItem::Known(postmaster_pid::dir_entry(), KnownPGDataItem::PostmasterPid, PGDataItemState::Missing), // postmaster.pid not created on pgdata setup
                 ])
             );
+        }
+    }
+}
+
+#[cfg(test)]
+pub mod test_stubs {
+    use super::{
+        base::{test_stubs::StubBase, Base},
+        PGDataItems,
+    };
+
+    pub struct StubPGDataItems;
+    impl PGDataItems for StubPGDataItems {
+        fn base<'a, 'b>(&'a self) -> impl Base + 'b {
+            StubBase {}
         }
     }
 }

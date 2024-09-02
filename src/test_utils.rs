@@ -5,12 +5,10 @@ use colored::Colorize;
 
 pub fn line(str: &str, colors: &[Option<Color>]) -> String {
     let p = str.split('|');
-    let line = p
-        .zip(colors)
+    p.zip(colors)
         .map(|(s, color)| color.map_or_else(|| s.to_string(), |c| format!("{}", s.color(c))))
         .collect::<Vec<String>>()
-        .concat();
-    format!("{}", line)
+        .concat()
 }
 
 pub mod colors {

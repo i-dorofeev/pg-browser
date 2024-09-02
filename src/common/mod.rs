@@ -1,6 +1,6 @@
-use std::ffi::OsString;
+use std::ffi::OsStr;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::anyhow;
 
 pub mod fs;
 pub mod result_option;
@@ -8,61 +8,25 @@ pub mod result_option;
 #[cfg(test)]
 pub mod test_utils;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct PgOid(pub u32);
 
 impl PgOid {
     // TODO: tests for PgOid::try_parse
-    pub fn try_parse(s: &str) -> Option<Self> {
-        match s.parse::<u32>() {
+    pub fn try_parse<T>(s: T) -> Option<Self>
+    where
+        T: AsRef<OsStr>,
+    {
+        match s.as_ref().to_string_lossy().parse::<u32>() {
             Ok(oid) => Some(PgOid(oid)),
             Err(_) => None,
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum FileType {
-    Dir,
-    File,
-}
-
-impl FileType {
-    pub fn from(file_type: std::fs::FileType) -> Result<FileType> {
-        match file_type {
-            _ if file_type.is_dir() => Ok(FileType::Dir),
-            _ if file_type.is_file() => Ok(FileType::File),
-            _ => Err(anyhow!("Unknown FileType {:?}", file_type)),
-        }
-    }
-}
-
-pub fn render_file_type(file_type: &FileType) -> String {
-    match file_type {
-        FileType::Dir => "D",
-        FileType::File => "F",
-    }
-    .to_string()
-}
-
-#[derive(Debug, PartialEq)]
-pub struct SimpleDirEntry {
-    pub name: OsString,
-    pub entry_type: FileType,
-}
-
-impl SimpleDirEntry {
-    // TODO: tests for SimpleDirEntry::from
-    pub fn from(dir_entry: &std::fs::DirEntry) -> Result<SimpleDirEntry> {
-        let fs_file_type = dir_entry
-            .file_type()
-            .with_context(|| format!("SimpleDirEntry.from({:?})", dir_entry.path()))?;
-        let file_type = FileType::from(fs_file_type)
-            .with_context(|| format!("SimpleDirEntry.from({:?})", dir_entry.path()))?;
-        Ok(SimpleDirEntry {
-            name: dir_entry.file_name(),
-            entry_type: file_type,
-        })
+impl From<u32> for PgOid {
+    fn from(value: u32) -> Self {
+        PgOid(value)
     }
 }
 
@@ -77,5 +41,17 @@ impl PartialEq for Error {
         let Error(err_this) = self;
         let Error(err_other) = other;
         format!("{:?}", err_this) == format!("{:?}", err_other)
+    }
+}
+
+impl From<anyhow::Error> for Error {
+    fn from(error: anyhow::Error) -> Self {
+        Error(error)
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        Error(anyhow!(error))
     }
 }

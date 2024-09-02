@@ -1,23 +1,25 @@
 use anyhow::{anyhow, Context, Result};
 use std::{
+    borrow::Cow,
     ffi::{OsStr, OsString},
     fmt::Debug,
-    rc::Rc,
 };
 
+use std::fs::DirEntry as StdDirEntry;
+
 #[derive(PartialEq, PartialOrd, Hash, Eq, Ord)]
-pub struct DirEntry {
-    name: Rc<OsStr>,
-    entry_type: FileType,
+pub struct DirEntry<'a> {
+    pub name: Cow<'a, OsStr>,
+    pub entry_type: FileType,
 }
 
-impl Debug for DirEntry {
+impl Debug for DirEntry<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{:?}: {:?}", self.entry_type, self.name))
     }
 }
 
-impl Clone for DirEntry {
+impl Clone for DirEntry<'_> {
     fn clone(&self) -> Self {
         DirEntry {
             name: self.name.clone(),
@@ -26,9 +28,9 @@ impl Clone for DirEntry {
     }
 }
 
-impl DirEntry {
+impl DirEntry<'_> {
     // TODO: tests for DirEntry::from
-    pub fn from(dir_entry: &std::fs::DirEntry) -> Result<DirEntry> {
+    pub fn from(dir_entry: &StdDirEntry) -> Result<DirEntry<'static>> {
         let fs_file_type = dir_entry
             .file_type()
             .with_context(|| format!("DirEntry.from({:?})", dir_entry.path()))?;
@@ -36,22 +38,23 @@ impl DirEntry {
             .with_context(|| format!("DirEntry.from({:?})", dir_entry.path()))?;
 
         Ok(DirEntry {
-            name: Rc::from(dir_entry.file_name().as_os_str()),
+            name: dir_entry.file_name().into(),
             entry_type: file_type,
         })
     }
 
-    pub fn file(name: &'static str) -> DirEntry {
-        DirEntry {
-            name: Rc::from(OsString::from(name).as_os_str()),
-            entry_type: FileType::File,
-        }
+    pub fn file(name: &str) -> DirEntry<'static> {
+        DirEntry::entry(FileType::File, name)
     }
 
-    pub fn dir(name: &'static str) -> DirEntry {
+    pub fn dir(name: &str) -> DirEntry<'static> {
+        DirEntry::entry(FileType::Dir, name)
+    }
+
+    pub fn entry(entry_type: FileType, name: &str) -> DirEntry<'static> {
         DirEntry {
-            name: Rc::from(OsString::from(name).as_os_str()),
-            entry_type: FileType::Dir,
+            name: OsString::from(name).into(),
+            entry_type,
         }
     }
 }
@@ -70,4 +73,12 @@ impl FileType {
             _ => Err(anyhow!("Unknown FileType {:?}", file_type)),
         }
     }
+}
+
+pub fn render_file_type(file_type: &FileType) -> String {
+    match file_type {
+        FileType::Dir => "D",
+        FileType::File => "F",
+    }
+    .to_string()
 }

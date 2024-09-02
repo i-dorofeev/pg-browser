@@ -1,24 +1,19 @@
-use std::env;
+use std::{env, io::stdout};
 
+use anyhow::Ok;
 use pg_browser::{
-    handlers::{find_handler, root_handler::RootHandler, string_iter, TermSize},
-    readers::reader_factory,
+    handlers::{find_handler, root_handler::RootHandler, TermSize},
+    pgdata,
 };
 
-fn main() {
+fn main() -> Result<(), anyhow::Error> {
     let args: Vec<String> = env::args().collect();
     let current_dir = env::current_dir().unwrap();
-    let root_handler = Box::new(RootHandler {
-        pgdata: current_dir,
-    });
+    let pgdata = pgdata::pgdata(current_dir.into());
+    let root_handler = Box::new(RootHandler { pgdata });
     let term_size = TermSize::new(&termsize::get().unwrap());
-    let readers = reader_factory();
-    let result = find_handler(root_handler, &args[1..]).map_or_else(string_iter, |handler| {
-        handler
-            .handle(&term_size, readers.as_ref())
-            .unwrap_or_else(|err| Box::new(vec![format!("Error: {err}")].into_iter()))
-    });
-    for line in result {
-        print!("{line}");
-    }
+    let mut stdout = stdout();
+    let handler = find_handler(root_handler, &args[1..])?;
+    handler.handle(&term_size, Box::new(&mut stdout))?;
+    Ok(())
 }
