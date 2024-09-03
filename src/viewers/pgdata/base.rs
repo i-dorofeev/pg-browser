@@ -8,11 +8,11 @@ use colored::Colorize;
 
 use crate::GRAY;
 
-pub struct BaseHandler<T: Base> {
+pub struct BaseViewer<T: Base> {
     pub base: T,
 }
 
-impl<T: Base> Viewer for BaseHandler<T> {
+impl<T: Base> Viewer for BaseViewer<T> {
     fn get_next(self: Box<Self>, _param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         todo!()
     }
@@ -91,7 +91,7 @@ mod tests {
         test_utils::line,
     };
 
-    use super::BaseHandler;
+    use super::BaseViewer;
 
     #[test]
     fn base_hander_renders_base_dir_contents() {
@@ -108,7 +108,7 @@ mod tests {
             },
         };
 
-        let base_handler = BaseHandler { base };
+        let base_handler = BaseViewer { base };
 
         let term_size = TermSize {
             rows: 100,

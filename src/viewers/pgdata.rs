@@ -9,7 +9,7 @@ use crate::{
     GRAY,
 };
 
-use self::base::BaseHandler;
+use self::base::BaseViewer;
 
 use super::{Viewer, TermSize};
 
@@ -23,7 +23,7 @@ pub struct RootViewer<T: PGData> {
 impl<T: PGData> Viewer for RootViewer<T> {
     fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         match param {
-            "base" => Ok(Box::new(BaseHandler {
+            "base" => Ok(Box::new(BaseViewer {
                 base: self.pgdata.items().base(),
             })),
             "a" => Ok(Box::new(AViewer {})),
