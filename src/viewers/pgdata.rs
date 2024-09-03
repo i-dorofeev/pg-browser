@@ -213,7 +213,7 @@ impl<'a> Iterator for StrChunks<'a> {
 struct AViewer {}
 impl Viewer for AViewer {
     fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
-        Err(anyhow!("AHandler: Unknown param {param}"))
+        Err(anyhow!("AViewer: Unknown param {param}"))
     }
 
     fn handle<'a>(
@@ -221,14 +221,14 @@ impl Viewer for AViewer {
         _term_size: &'a TermSize,
         write: Box<&mut dyn std::io::Write>,
     ) -> anyhow::Result<()> {
-        writeln!(write, "Handled by AHandler").map_err(|err| anyhow!(err))
+        writeln!(write, "Handled by AViewer").map_err(|err| anyhow!(err))
     }
 }
 
 struct BViewer {}
 impl Viewer for BViewer {
     fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
-        Err(anyhow!("BHandler: Unknown param {param}"))
+        Err(anyhow!("BViewer: Unknown param {param}"))
     }
 
     fn handle<'a>(
@@ -236,7 +236,7 @@ impl Viewer for BViewer {
         _term_size: &'a TermSize,
         write: Box<&mut dyn std::io::prelude::Write>,
     ) -> anyhow::Result<()> {
-        writeln!(write, "Handled by BHandler").map_err(|err| anyhow!(err))
+        writeln!(write, "Handled by BViewer").map_err(|err| anyhow!(err))
     }
 }
 
@@ -305,7 +305,7 @@ mod tests {
     #[test]
     fn root_hander_renders_root_dir_contents() {
         // given
-        let root_handler = RootViewer {
+        let root_viewer = RootViewer {
             pgdata: StubPGData {
                 path: Path::new("/pgdata"),
                 items: || root_dir_items(),
@@ -320,7 +320,7 @@ mod tests {
         let mut buf = Vec::new();
 
         // when
-        root_handler.handle(&term_size, Box::new(&mut buf)).unwrap();
+        root_viewer.handle(&term_size, Box::new(&mut buf)).unwrap();
         let output = String::from_utf8(buf).unwrap();
 
         // then

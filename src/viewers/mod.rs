@@ -45,18 +45,18 @@ mod tests {
     const TERM_SIZE: TermSize = TermSize { rows: 20, cols: 80 };
 
     #[test]
-    fn traverses_args_and_returns_handler() {
+    fn traverses_args_and_returns_viewer() {
         // given
-        let root_handler = Box::new(MockHandler {
+        let root_viewer = Box::new(MockViewer {
             collected_args: [].to_vec(),
         });
         let args: Vec<String> = ["a", "b", "c"].iter().map(|&i| i.to_string()).collect();
 
         // when
-        let found_handler = find_viewer(root_handler, &args).expect("handler is found");
+        let found_viewer = find_viewer(root_viewer, &args).expect("viewer is found");
 
         let mut buf = Vec::new();
-        found_handler
+        found_viewer
             .handle(&TERM_SIZE, Box::new(&mut buf))
             .unwrap();
         let output = String::from_utf8(buf).unwrap();
@@ -64,18 +64,18 @@ mod tests {
         // then
         assert_eq!(
             "a b c / TermSize { rows: 20, cols: 80 }", output,
-            "mock handler should collect all the arguments"
+            "mock viewer should collect all the arguments"
         );
     }
 
     #[test]
-    fn returns_error_when_handler_does_not_support_parameter() {
+    fn returns_error_when_viewer_does_not_support_parameter() {
         // given
-        let root_handler = Box::new(ErrHandler {});
+        let root_viewer = Box::new(ErrViewer {});
         let args: Vec<String> = vec!["aaa".to_string()];
 
         // when
-        let result = find_viewer(root_handler, &args);
+        let result = find_viewer(root_viewer, &args);
 
         // then
         assert!(result.is_err());
@@ -85,16 +85,16 @@ mod tests {
         );
     }
 
-    struct MockHandler {
+    struct MockViewer {
         collected_args: Vec<String>,
     }
 
-    impl Viewer for MockHandler {
+    impl Viewer for MockViewer {
         fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
             let mut new_args = self.collected_args.to_vec();
             new_args.push(param.to_string());
 
-            Ok(Box::new(MockHandler {
+            Ok(Box::new(MockViewer {
                 collected_args: new_args,
             }))
         }
@@ -109,8 +109,8 @@ mod tests {
         }
     }
 
-    struct ErrHandler {}
-    impl Viewer for ErrHandler {
+    struct ErrViewer {}
+    impl Viewer for ErrViewer {
         fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
             Err(anyhow!("{param} is not supported"))
         }

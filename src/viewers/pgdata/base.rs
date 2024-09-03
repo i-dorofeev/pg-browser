@@ -108,7 +108,7 @@ mod tests {
             },
         };
 
-        let base_handler = BaseViewer { base };
+        let base_viewer = BaseViewer { base };
 
         let term_size = TermSize {
             rows: 100,
@@ -118,7 +118,7 @@ mod tests {
         let mut buf = Vec::new();
 
         // when
-        base_handler.handle(&term_size, Box::new(&mut buf)).unwrap();
+        base_viewer.handle(&term_size, Box::new(&mut buf)).unwrap();
         let output = String::from_utf8_lossy(&buf).into_owned();
 
         // then
