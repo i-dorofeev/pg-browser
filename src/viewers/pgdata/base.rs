@@ -1,6 +1,6 @@
 use crate::{
     common::fs::{render_file_type, DirEntry},
-    pgdata::base::{Base, BaseDirItem}, viewers::{Handler, TermSize},
+    pgdata::base::{Base, BaseDirItem}, viewers::{Viewer, TermSize},
 };
 
 use anyhow::anyhow;
@@ -12,8 +12,8 @@ pub struct BaseHandler<T: Base> {
     pub base: T,
 }
 
-impl<T: Base> Handler for BaseHandler<T> {
-    fn get_next(self: Box<Self>, _param: &str) -> anyhow::Result<Box<dyn Handler>> {
+impl<T: Base> Viewer for BaseHandler<T> {
+    fn get_next(self: Box<Self>, _param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         todo!()
     }
 
@@ -85,7 +85,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::pgdata::base::{Base, BaseDirItem};
-    use crate::viewers::{Handler, TermSize};
+    use crate::viewers::{Viewer, TermSize};
     use crate::{
         test_utils::colors::{BRIGHT_BLUE, GRAY, NONE, RED, YELLOW},
         test_utils::line,

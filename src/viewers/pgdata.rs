@@ -11,7 +11,7 @@ use crate::{
 
 use self::base::BaseHandler;
 
-use super::{Handler, TermSize};
+use super::{Viewer, TermSize};
 
 mod base;
 
@@ -20,8 +20,8 @@ pub struct RootHandler<T: PGData> {
     pub pgdata: T,
 }
 
-impl<T: PGData> Handler for RootHandler<T> {
-    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Handler>> {
+impl<T: PGData> Viewer for RootHandler<T> {
+    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         match param {
             "base" => Ok(Box::new(BaseHandler {
                 base: self.pgdata.items().base(),
@@ -211,8 +211,8 @@ impl<'a> Iterator for StrChunks<'a> {
 }
 
 struct AHandler {}
-impl Handler for AHandler {
-    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Handler>> {
+impl Viewer for AHandler {
+    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         Err(anyhow!("AHandler: Unknown param {param}"))
     }
 
@@ -226,8 +226,8 @@ impl Handler for AHandler {
 }
 
 struct BHandler {}
-impl Handler for BHandler {
-    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Handler>> {
+impl Viewer for BHandler {
+    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         Err(anyhow!("BHandler: Unknown param {param}"))
     }
 
@@ -243,8 +243,8 @@ impl Handler for BHandler {
 struct ArbHandler {
     val: String,
 }
-impl Handler for ArbHandler {
-    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Handler>> {
+impl Viewer for ArbHandler {
+    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         let this_val = &self.val;
         Ok(Box::from(ArbHandler {
             val: format!("{this_val}/{param}"),
@@ -272,7 +272,7 @@ mod tests {
         test_utils::{
             colors::{BLUE, GREEN, NONE},
             line,
-        }, viewers::{Handler, TermSize},
+        }, viewers::{Viewer, TermSize},
     };
 
     use super::RootHandler;

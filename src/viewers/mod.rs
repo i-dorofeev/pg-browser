@@ -3,9 +3,9 @@ pub mod pgdata;
 use std::io::Write;
 
 pub fn find_viewer<'a>(
-    root_handler: Box<dyn Handler + 'a>,
+    root_handler: Box<dyn Viewer + 'a>,
     args: &[String],
-) -> anyhow::Result<Box<dyn Handler + 'a>> {
+) -> anyhow::Result<Box<dyn Viewer + 'a>> {
     if args.is_empty() {
         Ok(root_handler)
     } else {
@@ -29,8 +29,8 @@ impl TermSize {
     }
 }
 
-pub trait Handler {
-    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Handler>>;
+pub trait Viewer {
+    fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>>;
 
     fn handle<'a>(&self, term_size: &'a TermSize, write: Box<&mut dyn Write>)
         -> anyhow::Result<()>;
@@ -40,7 +40,7 @@ pub trait Handler {
 mod tests {
     use anyhow::anyhow;
 
-    use super::{find_viewer, Handler, TermSize};
+    use super::{find_viewer, Viewer, TermSize};
 
     const TERM_SIZE: TermSize = TermSize { rows: 20, cols: 80 };
 
@@ -89,8 +89,8 @@ mod tests {
         collected_args: Vec<String>,
     }
 
-    impl Handler for MockHandler {
-        fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Handler>> {
+    impl Viewer for MockHandler {
+        fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
             let mut new_args = self.collected_args.to_vec();
             new_args.push(param.to_string());
 
@@ -110,8 +110,8 @@ mod tests {
     }
 
     struct ErrHandler {}
-    impl Handler for ErrHandler {
-        fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Handler>> {
+    impl Viewer for ErrHandler {
+        fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
             Err(anyhow!("{param} is not supported"))
         }
 
