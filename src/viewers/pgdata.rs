@@ -15,12 +15,12 @@ use super::{Viewer, TermSize};
 
 mod base;
 
-pub struct RootHandler<T: PGData> {
+pub struct RootViewer<T: PGData> {
     // TODO: create factory and make private
     pub pgdata: T,
 }
 
-impl<T: PGData> Viewer for RootHandler<T> {
+impl<T: PGData> Viewer for RootViewer<T> {
     fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         match param {
             "base" => Ok(Box::new(BaseHandler {
@@ -275,7 +275,7 @@ mod tests {
         }, viewers::{Viewer, TermSize},
     };
 
-    use super::RootHandler;
+    use super::RootViewer;
 
     struct StubPGData<F>
     where
@@ -305,7 +305,7 @@ mod tests {
     #[test]
     fn root_hander_renders_root_dir_contents() {
         // given
-        let root_handler = RootHandler {
+        let root_handler = RootViewer {
             pgdata: StubPGData {
                 path: Path::new("/pgdata"),
                 items: || root_dir_items(),
