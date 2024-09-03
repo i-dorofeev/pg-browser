@@ -1,7 +1,7 @@
 use colored::Color;
 
 pub mod common;
-pub mod handlers;
+pub mod viewers;
 pub mod pgdata;
 pub mod test_utils;
 

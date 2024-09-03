@@ -9,7 +9,11 @@ use crate::{
     GRAY,
 };
 
-use super::{root_dir_handlers::base_handler::BaseHandler, Handler, TermSize};
+use self::base::BaseHandler;
+
+use super::{Handler, TermSize};
+
+mod base;
 
 pub struct RootHandler<T: PGData> {
     // TODO: create factory and make private
@@ -264,12 +268,11 @@ mod tests {
     use strum::IntoEnumIterator;
 
     use crate::{
-        handlers::{Handler, TermSize},
         pgdata::{test_stubs::StubPGDataItems, KnownPGDataItem, PGData, PGDataItem, PGDataItems},
         test_utils::{
             colors::{BLUE, GREEN, NONE},
             line,
-        },
+        }, viewers::{Handler, TermSize},
     };
 
     use super::RootHandler;

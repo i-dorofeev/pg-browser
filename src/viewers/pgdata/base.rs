@@ -1,12 +1,12 @@
 use crate::{
     common::fs::{render_file_type, DirEntry},
-    pgdata::base::{Base, BaseDirItem},
+    pgdata::base::{Base, BaseDirItem}, viewers::{Handler, TermSize},
 };
 
 use anyhow::anyhow;
 use colored::Colorize;
 
-use crate::{handlers::Handler, GRAY};
+use crate::GRAY;
 
 pub struct BaseHandler<T: Base> {
     pub base: T,
@@ -19,7 +19,7 @@ impl<T: Base> Handler for BaseHandler<T> {
 
     fn handle<'a>(
         &self,
-        _term_size: &'a crate::handlers::TermSize,
+        _term_size: &'a TermSize,
         mut write: Box<&mut dyn std::io::Write>,
     ) -> anyhow::Result<()> {
         write!(
@@ -85,8 +85,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::pgdata::base::{Base, BaseDirItem};
+    use crate::viewers::{Handler, TermSize};
     use crate::{
-        handlers::{Handler, TermSize},
         test_utils::colors::{BRIGHT_BLUE, GRAY, NONE, RED, YELLOW},
         test_utils::line,
     };

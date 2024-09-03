@@ -1,9 +1,8 @@
-pub mod root_dir_handlers;
-pub mod root_handler;
+pub mod pgdata;
 
 use std::io::Write;
 
-pub fn find_handler<'a>(
+pub fn find_viewer<'a>(
     root_handler: Box<dyn Handler + 'a>,
     args: &[String],
 ) -> anyhow::Result<Box<dyn Handler + 'a>> {
@@ -11,7 +10,7 @@ pub fn find_handler<'a>(
         Ok(root_handler)
     } else {
         let next_handler = root_handler.get_next(&args[0]);
-        find_handler(next_handler?, &args[1..])
+        find_viewer(next_handler?, &args[1..])
     }
 }
 
@@ -41,7 +40,7 @@ pub trait Handler {
 mod tests {
     use anyhow::anyhow;
 
-    use super::{find_handler, Handler, TermSize};
+    use super::{find_viewer, Handler, TermSize};
 
     const TERM_SIZE: TermSize = TermSize { rows: 20, cols: 80 };
 
@@ -54,7 +53,7 @@ mod tests {
         let args: Vec<String> = ["a", "b", "c"].iter().map(|&i| i.to_string()).collect();
 
         // when
-        let found_handler = find_handler(root_handler, &args).expect("handler is found");
+        let found_handler = find_viewer(root_handler, &args).expect("handler is found");
 
         let mut buf = Vec::new();
         found_handler
@@ -76,7 +75,7 @@ mod tests {
         let args: Vec<String> = vec!["aaa".to_string()];
 
         // when
-        let result = find_handler(root_handler, &args);
+        let result = find_viewer(root_handler, &args);
 
         // then
         assert!(result.is_err());

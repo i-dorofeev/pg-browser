@@ -2,8 +2,7 @@ use std::{env, io::stdout};
 
 use anyhow::Ok;
 use pg_browser::{
-    handlers::{find_handler, root_handler::RootHandler, TermSize},
-    pgdata,
+    pgdata, viewers::{find_viewer, pgdata::RootHandler, TermSize}
 };
 
 fn main() -> Result<(), anyhow::Error> {
@@ -13,7 +12,7 @@ fn main() -> Result<(), anyhow::Error> {
     let root_handler = Box::new(RootHandler { pgdata });
     let term_size = TermSize::new(&termsize::get().unwrap());
     let mut stdout = stdout();
-    let handler = find_handler(root_handler, &args[1..])?;
+    let handler = find_viewer(root_handler, &args[1..])?;
     handler.handle(&term_size, Box::new(&mut stdout))?;
     Ok(())
 }
