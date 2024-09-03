@@ -293,7 +293,7 @@ mod tests {
             &self.path
         }
 
-        fn list_items(&self) -> anyhow::Result<Vec<PGDataItem>> {
+        fn list_items(&self) -> Result<impl IntoIterator<Item = PGDataItem<'_>, IntoIter = impl Iterator<Item = PGDataItem<'_>>>, anyhow::Error> {
             (self.items)()
         }
 
