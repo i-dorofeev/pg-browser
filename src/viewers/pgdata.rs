@@ -26,9 +26,9 @@ impl<T: PGData> Viewer for RootViewer<T> {
             "base" => Ok(Box::new(BaseHandler {
                 base: self.pgdata.items().base(),
             })),
-            "a" => Ok(Box::new(AHandler {})),
-            "b" => Ok(Box::new(BHandler {})),
-            val => Ok(Box::new(ArbHandler {
+            "a" => Ok(Box::new(AViewer {})),
+            "b" => Ok(Box::new(BViewer {})),
+            val => Ok(Box::new(ArbViewer {
                 val: String::from(val),
             })),
         }
@@ -210,8 +210,8 @@ impl<'a> Iterator for StrChunks<'a> {
     }
 }
 
-struct AHandler {}
-impl Viewer for AHandler {
+struct AViewer {}
+impl Viewer for AViewer {
     fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         Err(anyhow!("AHandler: Unknown param {param}"))
     }
@@ -225,8 +225,8 @@ impl Viewer for AHandler {
     }
 }
 
-struct BHandler {}
-impl Viewer for BHandler {
+struct BViewer {}
+impl Viewer for BViewer {
     fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         Err(anyhow!("BHandler: Unknown param {param}"))
     }
@@ -240,13 +240,13 @@ impl Viewer for BHandler {
     }
 }
 
-struct ArbHandler {
+struct ArbViewer {
     val: String,
 }
-impl Viewer for ArbHandler {
+impl Viewer for ArbViewer {
     fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         let this_val = &self.val;
-        Ok(Box::from(ArbHandler {
+        Ok(Box::from(ArbViewer {
             val: format!("{this_val}/{param}"),
         }))
     }
