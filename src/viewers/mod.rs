@@ -3,14 +3,14 @@ pub mod pgdata;
 use std::io::Write;
 
 pub fn find_viewer<'a>(
-    root_handler: Box<dyn Viewer + 'a>,
+    viewer: Box<dyn Viewer + 'a>,
     args: &[String],
 ) -> anyhow::Result<Box<dyn Viewer + 'a>> {
     if args.is_empty() {
-        Ok(root_handler)
+        Ok(viewer)
     } else {
-        let next_handler = root_handler.get_next(&args[0]);
-        find_viewer(next_handler?, &args[1..])
+        let next_viewer = viewer.get_next(&args[0]);
+        find_viewer(next_viewer?, &args[1..])
     }
 }
 
