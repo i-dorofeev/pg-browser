@@ -168,6 +168,7 @@ enum ChildProcessOutput {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 enum ChildProcessError {
     Wait(Error),
     StdErr(Error),

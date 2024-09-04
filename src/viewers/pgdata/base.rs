@@ -174,7 +174,7 @@ mod tests {
             Ok((self.items)().into_iter())
         }
 
-        fn db_dir<'b>(&self, oid: PgOid) -> anyhow::Result<impl DbDir + 'b> {
+        fn db_dir<'b>(&self, _oid: PgOid) -> anyhow::Result<impl DbDir + 'b> {
             Ok(StubDbDir {})
         }
     }
