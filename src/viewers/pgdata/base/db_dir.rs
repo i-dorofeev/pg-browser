@@ -1,25 +1,33 @@
-use crate::{pgdata::base::db_dir::DbDir, viewers::Viewer};
+use std::io::prelude::Write;
+
+use crate::{
+    pgdata::base::db_dir::DbDir,
+    viewers::{TermSize, Viewer},
+};
 
 pub struct DbDirViewer<T: DbDir> {
-	base_dir: T
-
+    base_dir: T,
 }
 
-impl<T> DbDirViewer<T> where T: DbDir {
-
-	pub fn new(base_dir: T) -> Self {
-		DbDirViewer { base_dir }
-	}
-
+impl<T> DbDirViewer<T>
+where
+    T: DbDir,
+{
+    pub fn new(base_dir: T) -> Self {
+        DbDirViewer { base_dir }
+    }
 }
 
 impl<T: DbDir> Viewer for DbDirViewer<T> {
     fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>> {
-        todo!()
+        anyhow::bail!("${param} not supported")
     }
 
-    fn handle<'a>(&self, term_size: &'a crate::viewers::TermSize, write: Box<&mut dyn std::io::prelude::Write>)
-        -> anyhow::Result<()> {
-        todo!()
+    fn handle<'a>(
+        &self,
+        _term_size: &'a TermSize,
+        _write: Box<&mut dyn Write>,
+    ) -> anyhow::Result<()> {
+        anyhow::bail!("DbDirViewer is not implemented")
     }
 }

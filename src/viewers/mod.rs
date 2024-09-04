@@ -40,7 +40,7 @@ pub trait Viewer {
 mod tests {
     use anyhow::anyhow;
 
-    use super::{find_viewer, Viewer, TermSize};
+    use super::{find_viewer, TermSize, Viewer};
 
     const TERM_SIZE: TermSize = TermSize { rows: 20, cols: 80 };
 
@@ -56,9 +56,7 @@ mod tests {
         let found_viewer = find_viewer(root_viewer, &args).expect("viewer is found");
 
         let mut buf = Vec::new();
-        found_viewer
-            .handle(&TERM_SIZE, Box::new(&mut buf))
-            .unwrap();
+        found_viewer.handle(&TERM_SIZE, Box::new(&mut buf)).unwrap();
         let output = String::from_utf8(buf).unwrap();
 
         // then

@@ -11,7 +11,7 @@ use crate::{
 
 use self::base::BaseViewer;
 
-use super::{Viewer, TermSize};
+use super::{TermSize, Viewer};
 
 mod base;
 
@@ -272,7 +272,8 @@ mod tests {
         test_utils::{
             colors::{BLUE, GREEN, NONE},
             line,
-        }, viewers::{Viewer, TermSize},
+        },
+        viewers::{TermSize, Viewer},
     };
 
     use super::RootViewer;
@@ -293,7 +294,12 @@ mod tests {
             &self.path
         }
 
-        fn list_items(&self) -> Result<impl IntoIterator<Item = PGDataItem<'_>, IntoIter = impl Iterator<Item = PGDataItem<'_>>>, anyhow::Error> {
+        fn list_items(
+            &self,
+        ) -> Result<
+            impl IntoIterator<Item = PGDataItem<'_>, IntoIter = impl Iterator<Item = PGDataItem<'_>>>,
+            anyhow::Error,
+        > {
             (self.items)()
         }
 

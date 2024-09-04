@@ -1,6 +1,6 @@
 use std::ffi::OsString;
-use std::{borrow::Cow, ffi::OsStr, path::Path};
 use std::fs::DirEntry as StdDirEntry;
+use std::{borrow::Cow, ffi::OsStr, path::Path};
 
 use crate::common::fs::DirEntry;
 use crate::common::{self, PgOid};
@@ -175,7 +175,10 @@ mod default_impl {
         fn items(
             &self,
         ) -> anyhow::Result<
-            impl IntoIterator<Item = super::db_dir::DbDirItem, IntoIter = impl Iterator<Item = super::db_dir::DbDirItem>>,
+            impl IntoIterator<
+                Item = super::db_dir::DbDirItem,
+                IntoIter = impl Iterator<Item = super::db_dir::DbDirItem>,
+            >,
         > {
             Ok(empty())
         }
@@ -239,8 +242,10 @@ pub mod test_stubs {
 
     use crate::common::PgOid;
 
-    use super::{db_dir::{test_stubs::StubDbDir, DbDir}, Base};
-
+    use super::{
+        db_dir::{test_stubs::StubDbDir, DbDir},
+        Base,
+    };
 
     pub struct StubBase;
     impl Base for StubBase {

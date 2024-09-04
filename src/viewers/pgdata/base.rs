@@ -1,6 +1,10 @@
 use crate::{
-    common::{fs::{render_file_type, DirEntry}, PgOid},
-    pgdata::base::{Base, BaseDirItem}, viewers::{TermSize, Viewer},
+    common::{
+        fs::{render_file_type, DirEntry},
+        PgOid,
+    },
+    pgdata::base::{Base, BaseDirItem},
+    viewers::{TermSize, Viewer},
 };
 
 use anyhow::{anyhow, Context};
@@ -18,7 +22,9 @@ pub struct BaseViewer<T: Base> {
 
 impl<T: Base> Viewer for BaseViewer<T> {
     fn get_next(self: Box<Self>, _param: &str) -> anyhow::Result<Box<dyn Viewer>> {
-        let base_dir = PgOid::try_parse(_param).context("Expected database oid").and_then(|oid| self.base.db_dir(oid))?;
+        let base_dir = PgOid::try_parse(_param)
+            .context("Expected database oid")
+            .and_then(|oid| self.base.db_dir(oid))?;
         Ok(Box::new(DbDirViewer::new(base_dir)))
     }
 
@@ -93,7 +99,7 @@ mod tests {
     use crate::pgdata::base::db_dir::test_stubs::StubDbDir;
     use crate::pgdata::base::db_dir::DbDir;
     use crate::pgdata::base::{Base, BaseDirItem};
-    use crate::viewers::{Viewer, TermSize};
+    use crate::viewers::{TermSize, Viewer};
     use crate::{
         test_utils::colors::{BRIGHT_BLUE, GRAY, NONE, RED, YELLOW},
         test_utils::line,

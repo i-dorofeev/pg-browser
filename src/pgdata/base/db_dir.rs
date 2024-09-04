@@ -278,7 +278,10 @@ pub mod test_stubs {
         fn items(
             &self,
         ) -> anyhow::Result<
-            impl IntoIterator<Item = super::DbDirItem, IntoIter = impl Iterator<Item = super::DbDirItem>>,
+            impl IntoIterator<
+                Item = super::DbDirItem,
+                IntoIter = impl Iterator<Item = super::DbDirItem>,
+            >,
         > {
             Ok(empty())
         }
