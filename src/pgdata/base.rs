@@ -7,7 +7,9 @@ use crate::common::{self, PgOid};
 use anyhow::bail;
 use anyhow::Context;
 
-mod db_dir;
+use self::db_dir::DbDir;
+
+pub mod db_dir;
 
 pub trait Base {
     fn path(&self) -> &Path;
@@ -16,6 +18,7 @@ pub trait Base {
     ) -> anyhow::Result<
         impl IntoIterator<Item = BaseDirItem, IntoIter = impl Iterator<Item = BaseDirItem>>,
     >;
+    fn db_dir<'a>(&self, oid: PgOid) -> anyhow::Result<impl DbDir + 'a>;
 }
 
 #[derive(Debug)]
@@ -120,6 +123,7 @@ pub fn base(pgdata_path: &Path) -> impl Base {
 
 mod default_impl {
     use std::fs::DirEntry as StdDirEntry;
+    use std::iter::empty;
     use std::{
         fs::read_dir,
         path::{Path, PathBuf},
@@ -129,7 +133,9 @@ mod default_impl {
     use anyhow::{Context, Error};
 
     use crate::common::fs::DirEntry;
+    use crate::common::PgOid;
 
+    use super::db_dir::DbDir;
     use super::{BaseDirItem, DatabaseDir};
 
     pub struct Base {
@@ -157,6 +163,21 @@ mod default_impl {
                     .map_or_else(BaseDirItem::Error, |dir_entry| to_base_dir_item(&dir_entry))
             });
             Ok(items)
+        }
+
+        fn db_dir<'a>(&self, oid: PgOid) -> anyhow::Result<impl DbDir + 'a> {
+            Ok(StubBaseDir {})
+        }
+    }
+
+    struct StubBaseDir;
+    impl DbDir for StubBaseDir {
+        fn items(
+            &self,
+        ) -> anyhow::Result<
+            impl IntoIterator<Item = super::db_dir::DbDirItem, IntoIter = impl Iterator<Item = super::db_dir::DbDirItem>>,
+        > {
+            Ok(empty())
         }
     }
 
@@ -216,7 +237,10 @@ mod default_impl {
 pub mod test_stubs {
     use std::path::Path;
 
-    use super::Base;
+    use crate::common::PgOid;
+
+    use super::{db_dir::{test_stubs::StubDbDir, DbDir}, Base};
+
 
     pub struct StubBase;
     impl Base for StubBase {
@@ -233,6 +257,10 @@ pub mod test_stubs {
             >,
         > {
             Ok(std::iter::empty())
+        }
+
+        fn db_dir<'a>(&self, _oid: PgOid) -> anyhow::Result<impl DbDir + 'a> {
+            Ok(StubDbDir {})
         }
     }
 }

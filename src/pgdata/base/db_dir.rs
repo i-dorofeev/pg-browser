@@ -10,10 +10,6 @@ use anyhow::Result;
 
 use crate::common::{fs::DirEntry, result_option::ResultOption};
 
-/*******************/
-/* Data structures */
-/*******************/
-
 pub trait DbDir {
     fn items(
         &self,
@@ -168,7 +164,7 @@ mod default_impl {
 }
 
 #[cfg(test)]
-mod db_dir_item_tests {
+mod db_dir_tests {
     use anyhow::Result;
     use pretty_assertions::assert_eq;
     use rstest::rstest;
@@ -268,5 +264,23 @@ mod fork_segment_file_tests {
 
         // then
         assert_eq!(parsed, None);
+    }
+}
+
+#[cfg(test)]
+pub mod test_stubs {
+    use std::iter::empty;
+
+    use super::DbDir;
+
+    pub struct StubDbDir;
+    impl DbDir for StubDbDir {
+        fn items(
+            &self,
+        ) -> anyhow::Result<
+            impl IntoIterator<Item = super::DbDirItem, IntoIter = impl Iterator<Item = super::DbDirItem>>,
+        > {
+            Ok(empty())
+        }
     }
 }
