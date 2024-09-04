@@ -32,8 +32,7 @@ impl TermSize {
 pub trait Viewer {
     fn get_next(self: Box<Self>, param: &str) -> anyhow::Result<Box<dyn Viewer>>;
 
-    fn handle<'a>(&self, term_size: &'a TermSize, write: Box<&mut dyn Write>)
-        -> anyhow::Result<()>;
+    fn handle(&self, term_size: &TermSize, write: Box<&mut dyn Write>) -> anyhow::Result<()>;
 }
 
 #[cfg(test)]

@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use crate::{
     common::{
         fs::{render_file_type, DirEntry},
@@ -28,11 +30,7 @@ impl<T: Base> Viewer for BaseViewer<T> {
         Ok(Box::new(DbDirViewer::new(base_dir)))
     }
 
-    fn handle<'a>(
-        &self,
-        _term_size: &'a TermSize,
-        mut write: Box<&mut dyn std::io::Write>,
-    ) -> anyhow::Result<()> {
+    fn handle(&self, _term_size: &TermSize, mut write: Box<&mut dyn Write>) -> anyhow::Result<()> {
         write!(
             write,
             "{}",
@@ -47,20 +45,17 @@ impl<T: Base> Viewer for BaseViewer<T> {
         write!(write, "\nEach directory stores data for each database in the cluster and is named after the database's OID in {}", "pg_database".color(GRAY))?;
 
         let items = self.base.items()?;
-        items
-            .into_iter()
-            .map(|item| {
-                writeln!(write, "")?;
-                format_base_dir_item(item, &mut write)
-            })
-            .collect::<anyhow::Result<()>>()?;
-        writeln!(write, "").map(|_| ()).map_err(|err| anyhow!(err))
+        items.into_iter().try_for_each(|item| {
+            writeln!(write)?;
+            format_base_dir_item(item, &mut write)
+        })?;
+        writeln!(write).map(|_| ()).map_err(|err| anyhow!(err))
     }
 }
 
 fn format_base_dir_item(
     base_dir_item: BaseDirItem<'_>,
-    target: &mut Box<&mut dyn std::io::Write>,
+    target: &mut dyn Write,
 ) -> anyhow::Result<()> {
     match base_dir_item {
         BaseDirItem::DatabaseDir(dir) => {

@@ -34,13 +34,11 @@ impl BaseDirItem<'_> {
             BaseDirItem::DatabaseDir(DatabaseDir {
                 oid: PgOid(oid),
                 db_name: _,
-            }) => OsString::try_from(oid.to_string())
-                .map(|osstring| osstring.into())
-                .context("never happens"),
+            }) => Ok(<OsString>::from(oid.to_string()).into()),
             BaseDirItem::UnknownEntry(DirEntry {
                 name,
                 entry_type: _,
-            }) => Ok(Cow::Borrowed(&name)),
+            }) => Ok(Cow::Borrowed(name)),
             BaseDirItem::Error(_) => bail!("Error"),
         }
     }
@@ -53,11 +51,11 @@ impl BaseDirItem<'_> {
     }
 
     pub fn unknown_file(name: &str) -> BaseDirItem<'static> {
-        BaseDirItem::UnknownEntry(DirEntry::file(name.into()))
+        BaseDirItem::UnknownEntry(DirEntry::file(name))
     }
 
     pub fn unknown_dir(name: &str) -> BaseDirItem<'static> {
-        BaseDirItem::UnknownEntry(DirEntry::dir(name.into()))
+        BaseDirItem::UnknownEntry(DirEntry::dir(name))
     }
 }
 
@@ -165,7 +163,7 @@ mod default_impl {
             Ok(items)
         }
 
-        fn db_dir<'a>(&self, oid: PgOid) -> anyhow::Result<impl DbDir + 'a> {
+        fn db_dir<'a>(&self, _oid: PgOid) -> anyhow::Result<impl DbDir + 'a> {
             Ok(StubBaseDir {})
         }
     }
@@ -192,7 +190,7 @@ mod default_impl {
         }
     }
 
-    fn to_base_dir_item<'a, 'b>(dir_entry: &'a StdDirEntry) -> BaseDirItem<'b> {
+    fn to_base_dir_item<'a>(dir_entry: &StdDirEntry) -> BaseDirItem<'a> {
         match DatabaseDir::from(dir_entry) {
             Ok(Some(database_dir)) => BaseDirItem::DatabaseDir(database_dir),
             Ok(None) => {

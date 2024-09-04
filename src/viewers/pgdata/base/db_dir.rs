@@ -5,6 +5,7 @@ use crate::{
     viewers::{TermSize, Viewer},
 };
 
+#[allow(dead_code)]
 pub struct DbDirViewer<T: DbDir> {
     base_dir: T,
 }
@@ -23,11 +24,7 @@ impl<T: DbDir> Viewer for DbDirViewer<T> {
         anyhow::bail!("${param} not supported")
     }
 
-    fn handle<'a>(
-        &self,
-        _term_size: &'a TermSize,
-        _write: Box<&mut dyn Write>,
-    ) -> anyhow::Result<()> {
+    fn handle(&self, _term_size: &TermSize, _write: Box<&mut dyn Write>) -> anyhow::Result<()> {
         anyhow::bail!("DbDirViewer is not implemented")
     }
 }

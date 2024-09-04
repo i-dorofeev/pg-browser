@@ -50,7 +50,7 @@ pub trait PGData {
 
 pub trait PGDataItems {
     /// Represents PG_DATA/base directory
-    fn base<'a, 'b>(&'a self) -> impl Base + 'b;
+    fn base<'a>(&self) -> impl Base + 'a;
 }
 
 /// Represents the item in the root of PG_DATA directory
@@ -179,7 +179,7 @@ mod default_impl {
     }
 
     impl super::PGDataItems for PGDataItems<'_> {
-        fn base<'a, 'b>(&'a self) -> impl Base + 'b {
+        fn base<'a>(&self) -> impl Base + 'a {
             base::base(&self.pgdata.path)
         }
     }

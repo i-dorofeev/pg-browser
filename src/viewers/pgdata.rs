@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ffi::OsStr};
+use std::{borrow::Cow, ffi::OsStr, io::Write};
 
 use anyhow::anyhow;
 use colored::Colorize;
@@ -34,11 +34,7 @@ impl<T: PGData> Viewer for RootViewer<T> {
         }
     }
 
-    fn handle<'a>(
-        &self,
-        term_size: &'a TermSize,
-        mut write: Box<&mut dyn std::io::Write>,
-    ) -> anyhow::Result<()> {
+    fn handle(&self, term_size: &TermSize, mut write: Box<&mut dyn Write>) -> anyhow::Result<()> {
         let pgdata_item_intoiter = self.pgdata.list_items()?;
 
         let pgdata_item_iter = pgdata_item_intoiter.into_iter();
@@ -56,13 +52,12 @@ impl<T: PGData> Viewer for RootViewer<T> {
         pgdata_item_views
             .into_iter()
             .enumerate()
-            .map(|(i, item)| {
+            .try_for_each(|(i, item)| {
                 if i > 0 {
-                    write.write("\n".as_bytes())?;
+                    writeln!(write)?;
                 }
                 item.write(name_col_width, term_size.cols, &mut write)
             })
-            .collect()
     }
 }
 
@@ -75,7 +70,7 @@ struct PgDataItemView<'a> {
 }
 
 impl PgDataItemView<'_> {
-    fn from<'a>(pgdata_item: PGDataItem<'a>) -> PgDataItemView<'a> {
+    fn from(pgdata_item: PGDataItem) -> PgDataItemView {
         match pgdata_item {
             PGDataItem::Known(dir_entry, known_pgdata_item, state) => {
                 PgDataItemView::known(dir_entry, known_pgdata_item, state)
@@ -84,7 +79,7 @@ impl PgDataItemView<'_> {
         }
     }
 
-    fn unknown<'a>(dir_entry: DirEntry<'a>) -> PgDataItemView<'a> {
+    fn unknown(dir_entry: DirEntry) -> PgDataItemView {
         PgDataItemView {
             name: dir_entry.name,
             description: "".into(),
@@ -93,11 +88,11 @@ impl PgDataItemView<'_> {
         }
     }
 
-    fn known<'a>(
-        dir_entry: DirEntry<'a>,
+    fn known(
+        dir_entry: DirEntry<'_>,
         known_pgdata_item: KnownPGDataItem,
         state: PGDataItemState,
-    ) -> PgDataItemView<'a> {
+    ) -> PgDataItemView<'_> {
         let description = match known_pgdata_item {
             KnownPGDataItem::PGVersion => "Major version number of PostgreSQL",
             KnownPGDataItem::Base =>  "Per-database directories",
@@ -138,7 +133,7 @@ impl PgDataItemView<'_> {
         &self,
         name_col_width: usize,
         terminal_width: usize,
-        target: &mut Box<&mut dyn std::io::Write>,
+        target: &mut dyn Write,
     ) -> anyhow::Result<()> {
         let item_type = match self.item_type {
             FileType::Dir => "D",
@@ -165,22 +160,19 @@ impl PgDataItemView<'_> {
         write!(target, "{} {} ", item_type_colored, padded_name_colored)?;
 
         let description_chunks = Self::chunks(&self.description, description_col_width);
-        description_chunks
-            .enumerate()
-            .map(|(i, chunk)| {
-                if i != 0 {
-                    write!(target, "\n{0: >1$}", " ", description_padding)?;
-                }
-                write!(target, "{}", chunk)?;
-                Ok(())
-            })
-            .collect()
+        description_chunks.enumerate().try_for_each(|(i, chunk)| {
+            if i != 0 {
+                write!(target, "\n{0: >1$}", " ", description_padding)?;
+            }
+            write!(target, "{}", chunk)?;
+            Ok(())
+        })
     }
 
     fn chunks(str: &str, size: usize) -> StrChunks {
         StrChunks {
             chunk_size: size,
-            str: str,
+            str,
         }
     }
 }
@@ -216,11 +208,7 @@ impl Viewer for AViewer {
         Err(anyhow!("AViewer: Unknown param {param}"))
     }
 
-    fn handle<'a>(
-        &self,
-        _term_size: &'a TermSize,
-        write: Box<&mut dyn std::io::Write>,
-    ) -> anyhow::Result<()> {
+    fn handle(&self, _term_size: &TermSize, mut write: Box<&mut dyn Write>) -> anyhow::Result<()> {
         writeln!(write, "Handled by AViewer").map_err(|err| anyhow!(err))
     }
 }
@@ -231,10 +219,10 @@ impl Viewer for BViewer {
         Err(anyhow!("BViewer: Unknown param {param}"))
     }
 
-    fn handle<'a>(
+    fn handle(
         &self,
-        _term_size: &'a TermSize,
-        write: Box<&mut dyn std::io::prelude::Write>,
+        _term_size: &TermSize,
+        mut write: Box<&mut dyn std::io::prelude::Write>,
     ) -> anyhow::Result<()> {
         writeln!(write, "Handled by BViewer").map_err(|err| anyhow!(err))
     }
@@ -251,11 +239,7 @@ impl Viewer for ArbViewer {
         }))
     }
 
-    fn handle<'a>(
-        &self,
-        _term_size: &'a TermSize,
-        write: Box<&mut dyn std::io::Write>,
-    ) -> anyhow::Result<()> {
+    fn handle(&self, _term_size: &TermSize, mut write: Box<&mut dyn Write>) -> anyhow::Result<()> {
         writeln!(write, "{}", self.val.clone()).map_err(|err| anyhow!(err))
     }
 }

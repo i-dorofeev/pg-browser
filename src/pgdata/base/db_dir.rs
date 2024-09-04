@@ -37,8 +37,7 @@ impl DbDirItem<'_> {
     }
 
     pub fn from_dir_entry(dir_entry: &StdDirEntry) -> DbDirItem<'static> {
-        DbDirItem::try_from_dir_entry(dir_entry)
-            .unwrap_or_else(|err| DbDirItem::from_anyhow_error(err))
+        DbDirItem::try_from_dir_entry(dir_entry).unwrap_or_else(DbDirItem::from_anyhow_error)
     }
 
     fn try_from_dir_entry(std_dir_entry: &StdDirEntry) -> Result<DbDirItem<'static>> {
@@ -95,7 +94,7 @@ impl ForkSegmentFile {
                     .get(5)
                     .map_or("0", |m| m.as_str())
                     .parse::<u16>()
-                    .map_or(None, Option::Some);
+                    .ok();
 
                 match (oid, fork_type, segment_id) {
                     (Some(oid), Some(fork_type), Some(segment_id)) => {
@@ -143,6 +142,7 @@ mod default_impl {
 
     use super::DbDirItem;
 
+    #[allow(dead_code)]
     struct DbDir {
         path: PathBuf,
     }
