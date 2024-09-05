@@ -7,15 +7,15 @@ use crate::{
 
 #[allow(dead_code)]
 pub struct DbDirViewer<T: DbDir> {
-    base_dir: T,
+    db_dir: T,
 }
 
 impl<T> DbDirViewer<T>
 where
     T: DbDir,
 {
-    pub fn new(base_dir: T) -> Self {
-        DbDirViewer { base_dir }
+    pub fn new(db_dir: T) -> Self {
+        DbDirViewer { db_dir }
     }
 }
 
