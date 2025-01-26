@@ -18,7 +18,7 @@ pub trait Base {
     ) -> anyhow::Result<
         impl IntoIterator<Item = BaseDirItem, IntoIter = impl Iterator<Item = BaseDirItem>>,
     >;
-    fn db_dir<'a>(&self, oid: PgOid) -> anyhow::Result<impl DbDir + 'a>;
+    fn db_dir<'a>(&self, oid: PgOid) -> impl DbDir + 'a;
 }
 
 #[derive(Debug)]
@@ -121,7 +121,6 @@ pub fn base(pgdata_path: &Path) -> impl Base {
 
 mod default_impl {
     use std::fs::DirEntry as StdDirEntry;
-    use std::iter::empty;
     use std::{
         fs::read_dir,
         path::{Path, PathBuf},
@@ -133,7 +132,7 @@ mod default_impl {
     use crate::common::fs::DirEntry;
     use crate::common::PgOid;
 
-    use super::db_dir::DbDir;
+    use super::db_dir::{self, DbDir};
     use super::{BaseDirItem, DatabaseDir};
 
     pub struct Base {
@@ -163,22 +162,8 @@ mod default_impl {
             Ok(items)
         }
 
-        fn db_dir<'a>(&self, _oid: PgOid) -> anyhow::Result<impl DbDir + 'a> {
-            Ok(StubBaseDir {})
-        }
-    }
-
-    struct StubBaseDir;
-    impl DbDir for StubBaseDir {
-        fn items(
-            &self,
-        ) -> anyhow::Result<
-            impl IntoIterator<
-                Item = super::db_dir::DbDirItem,
-                IntoIter = impl Iterator<Item = super::db_dir::DbDirItem>,
-            >,
-        > {
-            Ok(empty())
+        fn db_dir<'a>(&self, _oid: PgOid) -> impl DbDir + 'a {
+            db_dir::db_dir(self.path.join(_oid.to_string()))
         }
     }
 
@@ -262,8 +247,8 @@ pub mod test_stubs {
             Ok(std::iter::empty())
         }
 
-        fn db_dir<'a>(&self, _oid: PgOid) -> anyhow::Result<impl DbDir + 'a> {
-            Ok(StubDbDir {})
+        fn db_dir<'a>(&self, _oid: PgOid) -> impl DbDir + 'a {
+            StubDbDir {}
         }
     }
 }

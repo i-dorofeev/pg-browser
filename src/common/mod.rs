@@ -3,13 +3,20 @@ use std::ffi::OsStr;
 use anyhow::anyhow;
 
 pub mod fs;
+pub mod into_ordered_iterator;
 pub mod result_option;
 
 #[cfg(test)]
 pub mod test_utils;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Clone, Copy, Hash)]
 pub struct PgOid(pub u32);
+
+impl std::fmt::Display for PgOid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}", self.0))
+    }
+}
 
 impl PgOid {
     // TODO: tests for PgOid::try_parse

@@ -26,7 +26,7 @@ impl<T: Base> Viewer for BaseViewer<T> {
     fn get_next(self: Box<Self>, _param: &str) -> anyhow::Result<Box<dyn Viewer>> {
         let base_dir = PgOid::try_parse(_param)
             .context("Expected database oid")
-            .and_then(|oid| self.base.db_dir(oid))?;
+            .map(|oid| self.base.db_dir(oid))?;
         Ok(Box::new(DbDirViewer::new(base_dir)))
     }
 
@@ -174,8 +174,8 @@ mod tests {
             Ok((self.items)().into_iter())
         }
 
-        fn db_dir<'b>(&self, _oid: PgOid) -> anyhow::Result<impl DbDir + 'b> {
-            Ok(StubDbDir {})
+        fn db_dir<'b>(&self, _oid: PgOid) -> impl DbDir + 'b {
+            StubDbDir {}
         }
     }
 }

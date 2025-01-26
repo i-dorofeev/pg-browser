@@ -1,10 +1,11 @@
 use anyhow::anyhow;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use strum_macros::Display;
 
 use crate::common;
 use crate::common::PgOid;
-use std::fs::DirEntry as StdDirEntry;
+use std::{fs::DirEntry as StdDirEntry, path::PathBuf};
 
 use anyhow::Result;
 
@@ -51,18 +52,18 @@ impl DbDirItem<'_> {
             .otherwise(|| DirEntry::from(std_dir_entry).map(DbDirItem::UnknownEntry))
     }
 
-    fn fork_segment_file(dir_entry_name: &str) -> Result<Option<DbDirItem<'static>>> {
+    pub fn fork_segment_file(dir_entry_name: &str) -> Result<Option<DbDirItem<'static>>> {
         Ok(ForkSegmentFile::try_parse(dir_entry_name).map(DbDirItem::ForkSegmentFile))
     }
 
-    fn file_node_map_file(dir_entry_name: &str) -> Result<Option<DbDirItem<'static>>> {
+    pub fn file_node_map_file(dir_entry_name: &str) -> Result<Option<DbDirItem<'static>>> {
         match dir_entry_name {
             "pg_filenode.map" => Ok(Some(DbDirItem::FileNodeMapFile)),
             _ => Ok(None),
         }
     }
 
-    fn pg_version_file(dir_entry_name: &str) -> Result<Option<DbDirItem<'static>>> {
+    pub fn pg_version_file(dir_entry_name: &str) -> Result<Option<DbDirItem<'static>>> {
         match dir_entry_name {
             "PG_VERSION" => Ok(Some(DbDirItem::PgVersionFile)),
             _ => Ok(None),
@@ -116,9 +117,39 @@ impl ForkSegmentFile {
             segment_id,
         }
     }
+
+    pub fn fork_type(&self) -> ForkType {
+        self.fork_type
+    }
+
+    pub fn oid(&self) -> PgOid {
+        self.oid
+    }
+
+    pub fn segment_id(&self) -> u16 {
+        self.segment_id
+    }
+
+    pub fn filename(&self) -> String {
+        let mut name = String::with_capacity(10);
+
+        name.push_str(&self.oid.to_string());
+
+        match self.fork_type {
+            ForkType::Main => {}
+            ForkType::FreeSpaceMap => name.push_str("_fsm"),
+            ForkType::VisibilityMap => name.push_str("_vm"),
+        }
+
+        if self.segment_id > 0 {
+            name.push_str(&format!(".{}", self.segment_id));
+        }
+
+        name
+    }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy, Display)]
 pub enum ForkType {
     Main,
     FreeSpaceMap,
@@ -136,6 +167,11 @@ impl ForkType {
     }
 }
 
+/// Instantiates a default implementation of [DbDir]
+pub fn db_dir(path: PathBuf) -> impl DbDir {
+    default_impl::DbDir::new(path)
+}
+
 mod default_impl {
     use anyhow::Context;
     use std::{fs::read_dir, path::PathBuf};
@@ -143,7 +179,7 @@ mod default_impl {
     use super::DbDirItem;
 
     #[allow(dead_code)]
-    struct DbDir {
+    pub(super) struct DbDir {
         path: PathBuf,
     }
 
@@ -159,6 +195,12 @@ mod default_impl {
                 Err(err) => DbDirItem::from_io_error(err),
             });
             Ok(db_dir_item)
+        }
+    }
+
+    impl DbDir {
+        pub fn new(path: PathBuf) -> Self {
+            DbDir { path }
         }
     }
 }
@@ -249,6 +291,24 @@ mod fork_segment_file_tests {
 
         // then
         assert_eq!(parsed, Some(expected));
+    }
+
+    #[rstest]
+    #[case("12345")]
+    #[case("12345.1")]
+    #[case("12345_fsm")]
+    #[case("12345_fsm.2")]
+    #[case("12345_vm")]
+    #[case("12345_vm.3")]
+    fn renders_fork_segment_filename(#[case] file_name: &str) {
+        // given
+        let parsed = ForkSegmentFile::try_parse(file_name).unwrap();
+
+        // when
+        let rendered = parsed.filename();
+
+        // then
+        assert_eq!(file_name, rendered);
     }
 
     #[rstest]
